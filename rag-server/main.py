@@ -11,6 +11,9 @@ import requests
 # 导入现有的功能模块
 from Document_upload import Document_Upload
 from Document_Q_And_A import Document_Q_And_A
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # 创建FastAPI应用实例
 app = FastAPI(
@@ -34,10 +37,14 @@ app.add_middleware(
 )
 
 # 应用配置 - 建议从环境变量或配置文件读取
-APP_ID = "e8af8074"  # 示例ID，实际使用中应该从配置获取
-API_SECRET = "NWUyNmI0ODFkNDVkY2Q2MjAzMzQ0YmU1"  # 示例密钥，实际使用中应该从配置获取
+APP_ID = os.getenv("XFYUN_APP_ID")  # 示例ID，实际使用中应该从配置获取
+API_SECRET = os.getenv("XFYUN_API_SECRET")  # 示例密钥，实际使用中应该从配置获取
 UPLOAD_URL = "https://chatdoc.xfyun.cn/openapi/v1/file/upload"
 CHAT_URL = "wss://chatdoc.xfyun.cn/openapi/chat"
+if not APP_ID or not API_SECRET:
+    raise RuntimeError(
+        "Missing XFYUN_APP_ID or XFYUN_API_SECRET environment variables"
+    )
 
 # 请求模型
 class QARequest(BaseModel):
