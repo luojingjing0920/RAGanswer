@@ -307,8 +307,18 @@ def stream_websocket_response(ws_url, body):
 
         if code != 0:
             print(f"请求错误: {code}, {data}")
+
+            error_message = (
+                    data.get("content")
+                    or data.get("message")
+                    or "文档问答失败，请稍后重试"
+            )
+
+            message_queue.put(error_message)
             message_queue.put(END)
+
             ws.close()
+            return
 
         else:
             content = data.get("content")
