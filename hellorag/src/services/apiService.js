@@ -93,6 +93,83 @@ class ApiService {
   }
 
   /**
+ * 流式文档问答
+ * @param {string} fileId - 文件ID
+ * @param {string} question - 用户问题
+ * @param {Function} onChunk - 每收到一块数据时执行的回调
+ * @returns {Promise<string>} 完整回答
+ */
+  async askQuestionStream(fileId, question, onChunk) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/api/qa-document-stream`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            file_id: fileId,
+            question: question
+          }),
+          signal: controller.signal
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `文档问答失败: ${response.status} ${errorText}`
+        );
+      }
+
+      if (!response.body) {
+        throw new Error('当前浏览器不支持流式响应');
+      }
+
+      const reader = response.body.getReader();
+
+      const decoder = new TextDecoder('utf-8');
+
+      let fullText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        const chunk = decoder.decode(value, {
+          stream: true
+        });
+
+        fullText += chunk;
+
+        if (onChunk) {
+          onChunk(chunk, fullText);
+        }
+      }
+
+      return fullText;
+
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw new Error('请求超时，请稍后重试');
+      }
+
+      console.error('流式文档问答失败:', error);
+      throw error;
+
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  /**
    * 健康检查
    * @returns {Promise<Object>} 健康检查结果
    */

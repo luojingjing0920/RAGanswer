@@ -71,7 +71,7 @@
         </div>
         
         <!-- 正在输入提示 -->
-        <div v-if="isLoading" class="message ai-message typing">
+        <div v-if="isLoading && !hasReceivedChunk" class="message ai-message typing">
           <div class="message-header">
             <span class="message-author">AI助手</span>
           </div>
@@ -117,7 +117,9 @@ export default {
       question: '',
       conversation: [],
       error: null,
-      isLoading: false
+      isLoading: false,
+      // 是否已经收到第一块流式回答
+      hasReceivedChunk: false
     };
   },
   computed: {
@@ -141,36 +143,66 @@ export default {
     // 发送问题
     async sendQuestion() {
       if (!this.canSendQuestion) return;
-      
+
+      // 1. 保存用户当前的问题
       const questionText = this.question.trim();
-      
-      // 添加用户消息到对话历史
+
+      // 2. 先把用户的问题显示到聊天记录
       this.addUserMessage(questionText);
-      
+
+      // 3. 清空输入框，并进入加载状态
       this.question = '';
       this.isLoading = true;
+      this.hasReceivedChunk = false;
       this.error = null;
-      
+
+      // 4. 先创建一条“空的 AI 消息”
+      this.addAIMessage('');
+
+      // 5. 记录这条 AI 消息在 conversation 数组里的位置
+     const aiMessageIndex = this.conversation.length - 1;
+
       try {
-        // 使用HTTP API发送问题
-        const result = await apiService.askQuestion(this.fileId, questionText);
-        
-        // 确保我们获取的是字符串格式的回答
-        let answerText = result;
-        if (typeof result === 'object') {
-          answerText = result.answer || result.content || JSON.stringify(result);
-        } else if (typeof result !== 'string') {
-          answerText = String(result);
-        }
-        
-        // 添加AI回答到对话历史
-        this.addAIMessage(answerText);
+        // 6. 调用我们刚刚写好的流式接口
+        await apiService.askQuestionStream(
+          this.fileId,
+          questionText,
+
+          // 7. 每收到一个 chunk，就会执行这个回调
+          (chunk, fullText) => {
+            // 收到第一块数据
+            this.hasReceivedChunk = true;
+
+            // 更新同一条 AI 消息，而不是创建新的消息
+            this.conversation[aiMessageIndex].content = fullText;
+
+            // 回答变长以后，把聊天区域滚动到底部
+            this.scrollToBottom();
+          }
+        );
+
       } catch (err) {
         console.error('问答错误:', err);
-        this.error = err.message || '问答失败，请稍后重试';
-        this.addSystemMessage(`错误: ${this.error}`);
+
+        this.error =
+          err.message || '问答失败，请稍后重试';
+
+        // 如果这条 AI 消息还是空的，就直接删除
+        if (
+          this.conversation[aiMessageIndex] &&
+          !this.conversation[aiMessageIndex].content
+        ) {
+          this.conversation.splice(aiMessageIndex, 1);
+        }
+
+        this.addSystemMessage(
+          `错误: ${this.error}`
+        );
+
       } finally {
+        // 8. 不管成功还是失败，都退出 loading 状态
         this.isLoading = false;
+        this.hasReceivedChunk = false;
       }
     },
     
