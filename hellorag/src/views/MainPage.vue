@@ -17,6 +17,57 @@
       'init-mode': currentStep === 'init',
       'upload-mode': currentStep === 'upload'
     }">
+    <!-- 侧边栏 -->
+      <aside class="sidebar">
+        <!-- 文档列表区域 -->
+        <div v-if="uploadedFiles.length > 0" class="files-section">
+          <div>
+            <h3>我的文档</h3>
+            <p>{{ uploadedFiles.length }} 个文档</p>
+          </div>
+          <button
+            class="new-file-btn"
+            @click="startUpload"
+          >
+            + 上传
+          </button>
+          <div class="files-list">
+            <div 
+              v-for="file in uploadedFiles" 
+              :key="file.id"
+              class="file-item"
+              :class="{ active: file.id === uploadedFileId }"
+              @click="selectFile(file.id)"
+            >
+              <div class="file-info">
+                <div class="file-main">
+                  <span class="file-icon">📄</span>
+                  <div class="file-meta">
+                    <div class="file-name">{{ file.name || `文件 ${file.id.substring(0, 8)}...` }}</div>
+                    <div class="file-time">{{ formatDate(file.time) }}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="file-actions">
+                <button
+                  @click.stop="removeFile(file.id)"
+                  class="remove-btn"
+                  title="删除文档记录"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 空状态提示 -->
+        <div v-else class="empty-state">
+          <div class="empty-icon">📄</div>
+          <p>暂无历史文档</p>
+          <p class="empty-hint">上传文档后将在此显示</p>
+        </div>
+      </aside>
       <!-- 主内容区 -->
       <div class="main-content">
         <!-- 状态提示 -->
@@ -36,41 +87,9 @@
 
         <!-- 文档问答区域 -->
         <div v-if="currentStep === 'qa'" class="qa-section">
-          <DocumentQA :initial-file-id="uploadedFileId" />
+          <DocumentQA :key="uploadedFileId" :initial-file-id="uploadedFileId" :file-name="currentFileName"/>
         </div>
       </div>
-
-      <!-- 侧边栏 -->
-      <aside class="sidebar">
-        <!-- 文档列表区域 -->
-        <div v-if="uploadedFiles.length > 0" class="files-section">
-          <h3>历史文档</h3>
-          <div class="files-list">
-            <div 
-              v-for="file in uploadedFiles" 
-              :key="file.id"
-              class="file-item"
-              @click="selectFile(file.id)"
-            >
-              <div class="file-info">
-                <div class="file-name">{{ file.name || `文件 ${file.id.substring(0, 8)}...` }}</div>
-                <div class="file-time">{{ formatDate(file.time) }}</div>
-              </div>
-              <div class="file-actions">
-                <button @click.stop="selectFile(file.id)" class="use-btn">使用</button>
-                <button @click.stop="removeFile(file.id)" class="remove-btn">删除</button>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 空状态提示 -->
-        <div v-else class="empty-state">
-          <div class="empty-icon">📄</div>
-          <p>暂无历史文档</p>
-          <p class="empty-hint">上传文档后将在此显示</p>
-        </div>
-      </aside>
     </main>
 
     <!-- 底部信息 -->
@@ -134,6 +153,23 @@ export default {
       messageType: 'info' // 'info', 'success', 'error', 'warning'
     };
   },
+
+  computed: {
+    // 当前正在使用的文档
+    currentFile() {
+      return (
+        this.uploadedFiles.find(
+          file => file.id === this.uploadedFileId
+        ) || null
+      );
+    },
+
+    // 当前文档显示名称
+    currentFileName() {
+      return this.currentFile?.name || '当前文档';
+    }
+  },
+
   mounted() {
     // 从localStorage加载历史文件
     this.loadHistoryFiles();
@@ -152,20 +188,22 @@ export default {
     },
     
     // 处理文件上传完成
-    handleFileUploaded(fileId) {
+    handleFileUploaded(fileId, fileName) {
       this.uploadedFileId = fileId;
-      
-      // 保存到历史记录
-      this.addToHistory(fileId);
-      
+
+      // 保存文件 ID + 文件名
+      this.addToHistory(fileId, fileName);
+
       // 保存最后使用的文件ID
       localStorage.setItem('lastFileId', fileId);
-      
-      // 切换到问答步骤
+
+      // 切换到问答页面
       this.currentStep = 'qa';
-      
-      // 显示成功消息
-      this.showMessage('文件上传成功，正在跳转至问答界面...', 'success');
+
+      this.showMessage(
+        '文件上传成功，正在跳转至问答界面...',
+        'success'
+      );
     },
     
     // 选择历史文件
@@ -194,24 +232,29 @@ export default {
     },
     
     // 添加到历史记录
-    addToHistory(fileId) {
-      // 检查是否已存在
-      const exists = this.uploadedFiles.some(file => file.id === fileId);
+    addToHistory(fileId, fileName) {
+      const exists = this.uploadedFiles.some(
+        file => file.id === fileId
+      );
+
       if (!exists) {
         const newFile = {
           id: fileId,
-          time: new Date()
+          name: fileName,
+          time: new Date().toISOString()
         };
-        
+
         this.uploadedFiles.unshift(newFile);
-        
-        // 限制历史记录数量
+
         if (this.uploadedFiles.length > 10) {
-          this.uploadedFiles = this.uploadedFiles.slice(0, 10);
+          this.uploadedFiles =
+            this.uploadedFiles.slice(0, 10);
         }
-        
-        // 保存到localStorage
-        localStorage.setItem('uploadedFiles', JSON.stringify(this.uploadedFiles));
+
+        localStorage.setItem(
+          'uploadedFiles',
+          JSON.stringify(this.uploadedFiles)
+        );
       }
     },
     
@@ -326,7 +369,7 @@ export default {
 }
 
 .sidebar {
-  width: 320px;
+  width: 270px;
   flex-shrink: 0;
 }
 
@@ -441,6 +484,41 @@ export default {
   overflow-y: auto;
 }
 
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.sidebar-header h3 {
+  margin: 0;
+  padding: 0;
+  border: none;
+  font-size: 18px;
+  color: #303133;
+}
+
+.sidebar-header p {
+  margin-top: 3px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.new-file-btn {
+  padding: 7px 12px;
+  border: none;
+  border-radius: 7px;
+  background: #409eff;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.new-file-btn:hover {
+  background: #66b1ff;
+}
+
 /* 空状态样式 */
 .empty-state {
   background: white;
@@ -479,35 +557,64 @@ export default {
 
 .file-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 15px;
-  background: #f9f9f9;
-  border-radius: 8px;
-  transition: all 0.3s;
-  cursor: pointer;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px;
   border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.file-item:hover {
-  background: #f0f0f0;
+.file-item.active {
+  background: #eef4ff;
   border-color: #409eff;
-  transform: translateX(5px);
+  box-shadow: 0 0 0 1px rgba(64, 158, 255, 0.08);
+}
+
+
+.file-item:hover {
+  background: #f5f7fa;
+  border-color: #dcdfe6;
+  transform: none;
 }
 
 .file-info {
   flex: 1;
 }
 
+.file-main {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex: 1;
+}
+
+.file-icon {
+  flex-shrink: 0;
+  font-size: 18px;
+}
+
+.file-meta {
+  min-width: 0;
+}
+
 .file-name {
+  overflow: hidden;
+  margin-bottom: 3px;
+  color: #303133;
+  font-size: 13px;
   font-weight: 500;
-  color: #333;
-  margin-bottom: 5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file-time {
-  font-size: 12px;
-  color: #999;
+  font-size: 11px;
+  color: #a8abb2;
 }
 
 .file-actions {
@@ -535,12 +642,24 @@ export default {
 }
 
 .remove-btn {
-  background: #f56c6c;
-  color: white;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+
+  border: none;
+  border-radius: 6px;
+
+  background: transparent;
+  color: #909399;
+
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 26px;
 }
 
 .remove-btn:hover {
-  background: #f78989;
+  background: #fef0f0;
+  color: #f56c6c;
 }
 
 /* 底部样式 */
@@ -703,9 +822,15 @@ export default {
   }
   
   .content {
-    padding: 20px 15px;
-    gap: 20px;
-  }
+  flex: 1;
+  max-width: 1500px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+}
   
   .welcome-card {
     padding: 30px 20px;

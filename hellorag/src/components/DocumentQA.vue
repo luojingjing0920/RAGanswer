@@ -1,17 +1,27 @@
 <template>
   <div class="document-qa-container">
-    <h3>文档问答</h3>
-    
-    <!-- 文件ID输入区域 -->
-    <div class="file-id-section">
-      <label for="fileIdInput">文件ID：</label>
-      <input 
-        id="fileIdInput"
-        v-model="fileId" 
-        type="text" 
-        placeholder="请输入上传文档的文件ID"
-        class="file-id-input"
-      >
+  
+    <div class="qa-header">
+      <div class="current-document">
+        <div class="document-icon">
+          📄
+        </div>
+
+        <div class="document-info">
+          <div class="document-label">
+            当前文档
+          </div>
+
+          <div class="document-name">
+            {{ fileName }}
+          </div>
+        </div>
+      </div>
+
+      <div class="document-status">
+        <span class="status-dot"></span>
+        已就绪
+      </div>
     </div>
     
     <!-- 问答区域 -->
@@ -65,7 +75,7 @@
               <span class="message-author">AI助手</span>
               <span class="message-time">{{ formatTime(message.time) }}</span>
             </div>
-            <div class="message-content" v-html="formatAnswer(message.content)">
+            <div class="message-content markdown-body" v-html="formatAnswer(message.content)">
             </div>
           </div>
         </div>
@@ -89,7 +99,7 @@
     
     <!-- 提示信息 -->
     <div v-if="!fileId" class="info-message">
-      <p>请输入文件ID后开始问答</p>
+      <p>请先选择或上传一个文档后开始问答</p>
     </div>
     
     <!-- 错误信息 -->
@@ -101,6 +111,8 @@
 
 <script>
 import apiService from '../services/apiService';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 export default {
   name: 'DocumentQA',
@@ -109,11 +121,15 @@ export default {
     initialFileId: {
       type: String,
       default: ''
-    }
+    },
+
+    fileName: {
+    type: String,
+    default: '当前文档'
+  }
   },
   data() {
     return {
-      fileId: '',
       question: '',
       conversation: [],
       error: null,
@@ -123,20 +139,12 @@ export default {
     };
   },
   computed: {
+    fileId() {
+      return this.initialFileId;
+    },
+
     canSendQuestion() {
       return this.question.trim() && !this.isLoading;
-    }
-  },
-  watch: {
-    initialFileId(newVal) {
-      if (newVal && !this.fileId) {
-        this.fileId = newVal;
-      }
-    }
-  },
-  mounted() {
-    if (this.initialFileId) {
-      this.fileId = this.initialFileId;
     }
   },
   methods: {
@@ -255,11 +263,14 @@ export default {
     
     // 格式化回答内容
     formatAnswer(content) {
-      // 这里可以添加简单的markdown渲染或其他格式化
-      return content
-        .replace(/\n/g, '<br>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>');
+      if (!content) return '';
+
+      const html = marked.parse(content, {
+        breaks: true,
+        gfm: true
+      });
+
+      return DOMPurify.sanitize(html);
     },
     
 
@@ -292,25 +303,71 @@ h3 {
   text-align: center;
 }
 
-.file-id-section {
+.qa-header {
   display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
   align-items: center;
+  justify-content: space-between;
+  padding: 4px 4px 18px;
+  border-bottom: 1px solid #edf0f5;
+  margin-bottom: 16px;
 }
 
-.file-id-section label {
+.current-document {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.document-icon {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: #eef4ff;
+  font-size: 20px;
+}
+
+.document-info {
+  min-width: 0;
+}
+
+.document-label {
+  margin-bottom: 2px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.document-name {
+  max-width: 420px;
+  overflow: hidden;
+  color: #303133;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  color: #666;
-  font-weight: 500;
 }
 
-.file-id-input {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
+.document-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #f0f9eb;
+  color: #67c23a;
+  font-size: 12px;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .check-status-btn {
@@ -568,6 +625,97 @@ h3 {
   background: #fef0f0;
   border: 1px solid #fde2e2;
   color: #f56c6c;
+}
+
+/* AI Markdown 内容 */
+.markdown-body {
+  line-height: 1.75;
+  word-break: break-word;
+}
+
+/* 标题 */
+.markdown-body :deep(h1),
+.markdown-body :deep(h2),
+.markdown-body :deep(h3),
+.markdown-body :deep(h4) {
+  margin: 16px 0 10px;
+  line-height: 1.4;
+  color: #222;
+}
+
+.markdown-body :deep(h1) {
+  font-size: 20px;
+}
+
+.markdown-body :deep(h2) {
+  font-size: 18px;
+}
+
+.markdown-body :deep(h3) {
+  font-size: 16px;
+}
+
+/* 第一行标题不要留太大顶部空白 */
+.markdown-body :deep(h1:first-child),
+.markdown-body :deep(h2:first-child),
+.markdown-body :deep(h3:first-child) {
+  margin-top: 0;
+}
+
+/* 普通段落 */
+.markdown-body :deep(p) {
+  margin: 8px 0;
+}
+
+/* 列表 */
+.markdown-body :deep(ul),
+.markdown-body :deep(ol) {
+  padding-left: 22px;
+  margin: 8px 0;
+}
+
+.markdown-body :deep(li) {
+  margin: 4px 0;
+}
+
+/* 引用 */
+.markdown-body :deep(blockquote) {
+  margin: 10px 0;
+  padding: 8px 12px;
+  border-left: 4px solid #409eff;
+  background: #f5f7fa;
+  color: #606266;
+}
+
+/* 行内代码 */
+.markdown-body :deep(code) {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: #eef0f3;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 13px;
+}
+
+/* 代码块 */
+.markdown-body :deep(pre) {
+  overflow-x: auto;
+  padding: 12px;
+  margin: 10px 0;
+  border-radius: 6px;
+  background: #282c34;
+}
+
+.markdown-body :deep(pre code) {
+  padding: 0;
+  background: transparent;
+  color: #abb2bf;
+}
+
+/* 分割线 */
+.markdown-body :deep(hr) {
+  margin: 16px 0;
+  border: none;
+  border-top: 1px solid #e5e7eb;
 }
 
 /* 响应式设计 */
