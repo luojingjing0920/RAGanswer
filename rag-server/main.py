@@ -13,6 +13,13 @@ from Document_upload import Document_Upload
 from Document_Q_And_A import Document_Q_And_A
 from dotenv import load_dotenv
 
+from pathlib import Path
+import tempfile
+
+from rag.ingestion_service import (
+    IngestionService,
+)
+
 load_dotenv()
 
 # 创建FastAPI应用实例
@@ -58,6 +65,88 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+@app.post(
+    "/api/rag/documents",
+    summary="上传并索引 RAG 文档",
+    description=(
+        "上传本地文档，并完成解析、"
+        "切块、向量化及 ChromaDB 入库"
+    ),
+)
+async def upload_rag_document(
+    file: UploadFile = File(...)
+):
+    suffix = Path(
+        file.filename
+    ).suffix.lower()
+
+    supported_extensions = {
+        ".pdf",
+        ".docx",
+        ".txt",
+        ".md",
+    }
+
+    if suffix not in supported_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "暂不支持该文件类型，"
+                "仅支持 PDF、DOCX、TXT、MD"
+            ),
+        )
+
+    temp_path = None
+
+    try:
+        file_content = await file.read()
+
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=suffix,
+        ) as temp_file:
+            temp_file.write(file_content)
+            temp_path = Path(
+                temp_file.name
+            )
+
+        ingestion_service = (
+            IngestionService()
+        )
+
+        result = ingestion_service.ingest(
+            temp_path,
+            original_file_name=file.filename,
+        )
+
+        return {
+            "status": "success",
+            **result,
+        }
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"文档索引失败：{exc}"
+            ),
+        ) from exc
+
+    finally:
+        if (
+            temp_path is not None
+            and temp_path.exists()
+        ):
+            temp_path.unlink(
+                missing_ok=True
+            )
 
 @app.post("/api/upload-document", summary="上传文档", description="上传本地文件到文档服务")
 async def upload_document(
