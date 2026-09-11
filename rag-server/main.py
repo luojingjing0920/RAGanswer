@@ -20,6 +20,8 @@ from rag.ingestion_service import (
     IngestionService,
 )
 
+from rag.rag_service import RAGService
+
 load_dotenv()
 
 # 创建FastAPI应用实例
@@ -54,9 +56,17 @@ if not APP_ID or not API_SECRET:
     )
 
 # 请求模型
+# 旧版讯飞问答接口使用
 class QARequest(BaseModel):
     file_id: str
     question: str
+
+# 新版自建 RAG 问答接口使用
+class RAGQARequest(BaseModel):
+    document_id: str
+    question: str
+    top_k: int = 3
+    similarity_threshold: float = 0.5
 
 @app.get("/")
 async def root():
@@ -147,6 +157,60 @@ async def upload_rag_document(
             temp_path.unlink(
                 missing_ok=True
             )
+
+@app.post(
+    "/api/rag/qa",
+    summary="RAG 文档问答",
+    description="基于自建 Retrieval Pipeline 和 LLM 回答指定文档问题",
+)
+async def rag_qa(
+    request: RAGQARequest
+):
+    """
+    自建 RAG 问答接口。
+
+    Question
+        ↓
+    Query Embedding
+        ↓
+    Chroma Top-K
+        ↓
+    Similarity Threshold
+        ↓
+    Context Builder
+        ↓
+    LLM
+        ↓
+    Answer + Sources
+    """
+
+    try:
+        rag_service = RAGService()
+
+        result = await asyncio.to_thread(
+            rag_service.answer,
+            request.question,
+            request.document_id,
+            request.top_k,
+            request.similarity_threshold,
+        )
+
+        return {
+            "status": "success",
+            **result,
+        }
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"RAG 问答失败：{exc}",
+        ) from exc
 
 @app.post("/api/upload-document", summary="上传文档", description="上传本地文件到文档服务")
 async def upload_document(
