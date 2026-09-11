@@ -1,4 +1,5 @@
 import os
+import json
 
 import requests
 from dotenv import load_dotenv
@@ -153,6 +154,124 @@ class LLMService:
             )
 
         return answer
+
+    def generate_stream(
+            self,
+            question: str,
+            context: str,
+    ):
+        """
+        根据检索出的 Context 流式生成回答。
+
+        每次 yield 一个模型生成的文本片段。
+        """
+
+        question = question.strip()
+        context = context.strip()
+
+        if not question:
+            raise ValueError(
+                "question 不能为空"
+            )
+
+        if not context:
+            yield "根据当前文档无法确定。"
+            return
+
+        if not self.api_key:
+            raise ValueError(
+                "未配置 DEEPSEEK_API_KEY"
+            )
+
+        user_prompt = self._build_user_prompt(
+            question=question,
+            context=context,
+        )
+
+        response = requests.post(
+            f"{self.base_url}/chat/completions",
+            headers={
+                "Authorization":
+                    f"Bearer {self.api_key}",
+                "Content-Type":
+                    "application/json",
+            },
+            json={
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": SYSTEM_PROMPT,
+                    },
+                    {
+                        "role": "user",
+                        "content": user_prompt,
+                    },
+                ],
+                "thinking": {
+                    "type": "disabled"
+                },
+                "max_tokens": 800,
+                "stream": True,
+            },
+            stream=True,
+            timeout=60,
+        )
+
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            raise RuntimeError(
+                "LLM 流式请求失败："
+                f"{response.status_code} "
+                f"{response.text}"
+            ) from exc
+
+        for line in response.iter_lines(
+                decode_unicode=True
+        ):
+            if not line:
+                continue
+
+            # DeepSeek 可能发送：
+            # : keep-alive
+            if line.startswith(":"):
+                continue
+
+            if not line.startswith("data:"):
+                continue
+
+            data_text = (
+                line[len("data:"):]
+                .strip()
+            )
+
+            if data_text == "[DONE]":
+                break
+
+            try:
+                data = json.loads(
+                    data_text
+                )
+            except json.JSONDecodeError:
+                continue
+
+            choices = data.get(
+                "choices",
+                []
+            )
+
+            if not choices:
+                continue
+
+            delta = (
+                choices[0]
+                .get("delta", {})
+                .get("content")
+            )
+
+            if delta:
+                yield delta
 
     @staticmethod
     def _build_user_prompt(

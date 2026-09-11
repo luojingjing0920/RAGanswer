@@ -212,6 +212,81 @@ async def rag_qa(
             detail=f"RAG 问答失败：{exc}",
         ) from exc
 
+@app.post(
+    "/api/rag/qa-stream",
+    summary="RAG 流式文档问答",
+    description=(
+        "基于自建 Retrieval Pipeline "
+        "进行流式文档问答"
+    ),
+)
+async def rag_qa_stream(
+    request: RAGQARequest
+):
+    """
+    自建 RAG 流式问答。
+
+    Response 使用 NDJSON：
+
+    sources
+        ↓
+    answer chunks
+        ↓
+    done
+    """
+
+    def generate():
+        try:
+            rag_service = (
+                RAGService()
+            )
+
+            for event in (
+                rag_service.answer_stream(
+                    question=(
+                        request.question
+                    ),
+                    document_id=(
+                        request.document_id
+                    ),
+                    top_k=request.top_k,
+                    similarity_threshold=(
+                        request
+                        .similarity_threshold
+                    ),
+                )
+            ):
+                yield (
+                    json.dumps(
+                        event,
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+
+        except Exception as exc:
+            error_event = {
+                "type": "error",
+                "message": str(exc),
+            }
+
+            yield (
+                json.dumps(
+                    error_event,
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+
+    return StreamingResponse(
+        generate(),
+        media_type=(
+            "application/x-ndjson; "
+            "charset=utf-8"
+        ),
+    )
+
+
 @app.post("/api/upload-document", summary="上传文档", description="上传本地文件到文档服务")
 async def upload_document(
     file: UploadFile = File(...),
