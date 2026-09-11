@@ -1,167 +1,313 @@
 /**
- * 本地后端API服务
- * 用于调用本地8000端口后端接口
+ * 自建 RAG 后端 API 服务
  */
 class ApiService {
   constructor() {
-    // API基础URL，指向本地8000端口后端服务
-    this.baseUrl = 'http://localhost:8000';
+    this.baseUrl =
+      import.meta.env.VITE_API_BASE_URL ||
+      'http://127.0.0.1:8001';
   }
-  
+
   /**
-   * 上传文档文件
-   * @param {File} file - 要上传的文件对象
-   * @param {Object} options - 上传选项
-   * @returns {Promise<Object>} 上传结果
+   * 上传并索引文档
+   *
+   * Document
+   * → Parser
+   * → Chunker
+   * → Embedding
+   * → ChromaDB
    */
-  async uploadDocument(file, options = {}) {
+  async uploadDocument(file) {
     try {
-      // 使用FormData来构建多部分表单数据
       const formData = new FormData();
+
       formData.append('file', file);
-      formData.append('need_summary', options.needSummary?.toString() || 'false');
-      formData.append('step_by_step', options.stepByStep?.toString() || 'false');
-      
-      // 如果有回调URL，添加到表单数据中
-      if (options.callbackUrl) {
-        formData.append('callback_url', options.callbackUrl);
-      }
-      
-      // 调用本地8000端口的上传文档接口
-      const response = await fetch(`${this.baseUrl}/api/upload-document`, {
-        method: 'POST',
-        // 注意：不要手动设置Content-Type，让浏览器自动处理multipart/form-data
-        body: formData
-      });
+
+      const response = await fetch(
+        `${this.baseUrl}/api/rag/documents`,
+        {
+          method: 'POST',
+          body: formData
+        }
+      );
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`文件上传失败: ${response.status} ${errorText}`);
-        throw new Error(`文件上传失败: ${response.status} ${errorText}`);
+        const errorData = await response
+          .json()
+          .catch(() => null);
+
+        throw new Error(
+          errorData?.detail ||
+          `文件上传失败: ${response.status}`
+        );
       }
 
       return await response.json();
+
     } catch (error) {
-      console.error('文档上传失败:', error);
+      console.error(
+        'RAG 文档上传失败:',
+        error
+      );
+
       throw error;
     }
   }
 
   /**
-   * 文档问答
-   * @param {string} fileId - 文件ID
-   * @param {string} question - 问题
-   * @returns {Promise<Object>} 问答结果
+   * 非流式 RAG 问答
    */
-  async askQuestion(fileId, question) {
-    try {
-      // 设置超时控制
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
-      
-      // 调用本地8000端口的文档问答接口
-      const response = await fetch(`${this.baseUrl}/api/qa-document`, {
+  async askQuestion(
+    documentId,
+    question,
+    options = {}
+  ) {
+    const response = await fetch(
+      `${this.baseUrl}/api/rag/qa`,
+      {
         method: 'POST',
+
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type':
+            'application/json'
         },
+
         body: JSON.stringify({
-          file_id: fileId,
-          question: question
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId); // 清除超时定时器
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`文档问答失败: ${response.status} ${errorText}`);
-        throw new Error(`文档问答失败: ${response.status} ${errorText}`);
+          document_id: documentId,
+          question,
+          top_k: options.topK ?? 3,
+          similarity_threshold:
+            options.similarityThreshold ?? 0.5
+        })
       }
+    );
 
-      const data = await response.json();
-      // 优先使用answer字段，如果没有再使用完整响应
-      return data.answer || data.content || data;
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        throw new Error('请求超时，请稍后重试');
-      }
-      console.error('文档问答失败:', error);
-      throw error;
+    if (!response.ok) {
+      const errorData = await response
+        .json()
+        .catch(() => null);
+
+      throw new Error(
+        errorData?.detail ||
+        `RAG 问答失败: ${response.status}`
+      );
     }
+
+    return await response.json();
   }
 
   /**
- * 流式文档问答
- * @param {string} fileId - 文件ID
- * @param {string} question - 用户问题
- * @param {Function} onChunk - 每收到一块数据时执行的回调
- * @returns {Promise<string>} 完整回答
- */
-  async askQuestionStream(fileId, question, onChunk) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+   * 流式 RAG 问答
+   *
+   * 后端返回 NDJSON：
+   *
+   * {"type":"sources", ...}
+   * {"type":"answer", ...}
+   * {"type":"answer", ...}
+   * {"type":"done"}
+   */
+  async askQuestionStream(
+    documentId,
+    question,
+    onChunk,
+    onSources,
+    options = {}
+  ) {
+    const controller =
+      new AbortController();
+
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      120000
+    );
 
     try {
       const response = await fetch(
-        `${this.baseUrl}/api/qa-document-stream`,
+        `${this.baseUrl}/api/rag/qa-stream`,
         {
           method: 'POST',
+
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type':
+              'application/json'
           },
+
           body: JSON.stringify({
-            file_id: fileId,
-            question: question
+            document_id: documentId,
+            question,
+            top_k:
+              options.topK ?? 3,
+            similarity_threshold:
+              options.similarityThreshold ??
+              0.5
           }),
+
           signal: controller.signal
         }
       );
 
       if (!response.ok) {
-        const errorText = await response.text();
+        const errorData = await response
+          .json()
+          .catch(() => null);
+
         throw new Error(
-          `文档问答失败: ${response.status} ${errorText}`
+          errorData?.detail ||
+          `RAG 流式问答失败: ${response.status
+          }`
         );
       }
 
       if (!response.body) {
-        throw new Error('当前浏览器不支持流式响应');
+        throw new Error(
+          '当前浏览器不支持流式响应'
+        );
       }
 
-      const reader = response.body.getReader();
+      const reader =
+        response.body.getReader();
 
-      const decoder = new TextDecoder('utf-8');
+      const decoder =
+        new TextDecoder('utf-8');
 
+      let buffer = '';
       let fullText = '';
+      let sources = [];
+
+      /**
+       * 处理一整行 NDJSON。
+       */
+      const handleLine = (line) => {
+        const trimmed = line.trim();
+
+        if (!trimmed) {
+          return;
+        }
+
+        let event;
+
+        try {
+          event = JSON.parse(trimmed);
+        } catch (error) {
+          console.error(
+            'NDJSON 解析失败:',
+            trimmed,
+            error
+          );
+
+          throw new Error(
+            '流式响应格式解析失败'
+          );
+        }
+
+        if (event.type === 'sources') {
+          sources = Array.isArray(
+            event.data
+          )
+            ? event.data
+            : [];
+
+          if (onSources) {
+            onSources(sources);
+          }
+
+          return;
+        }
+
+        if (event.type === 'answer') {
+          const delta =
+            event.delta || '';
+
+          fullText += delta;
+
+          if (onChunk) {
+            onChunk(
+              delta,
+              fullText
+            );
+          }
+
+          return;
+        }
+
+        if (event.type === 'error') {
+          throw new Error(
+            event.message ||
+            'RAG 流式生成失败'
+          );
+        }
+
+        // done 事件暂时不需要额外处理
+      };
 
       while (true) {
-        const { done, value } = await reader.read();
+        const {
+          done,
+          value
+        } = await reader.read();
 
         if (done) {
           break;
         }
 
-        const chunk = decoder.decode(value, {
-          stream: true
-        });
+        /**
+         * 注意：
+         * 一个网络 chunk
+         * 不一定刚好等于一行 JSON。
+         *
+         * 所以必须使用 buffer。
+         */
+        buffer += decoder.decode(
+          value,
+          {
+            stream: true
+          }
+        );
 
-        fullText += chunk;
+        const lines =
+          buffer.split('\n');
 
-        if (onChunk) {
-          onChunk(chunk, fullText);
+        /**
+         * 最后一段可能只有半个 JSON，
+         * 留到下一次网络数据继续拼。
+         */
+        buffer =
+          lines.pop() || '';
+
+        for (const line of lines) {
+          handleLine(line);
         }
       }
 
-      return fullText;
+      /**
+       * 清空 TextDecoder
+       * 剩余缓冲内容。
+       */
+      buffer += decoder.decode();
 
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        throw new Error('请求超时，请稍后重试');
+      if (buffer.trim()) {
+        handleLine(buffer);
       }
 
-      console.error('流式文档问答失败:', error);
+      return {
+        answer: fullText,
+        sources
+      };
+
+    } catch (error) {
+      if (
+        error.name === 'AbortError'
+      ) {
+        throw new Error(
+          '请求超时，请稍后重试'
+        );
+      }
+
+      console.error(
+        'RAG 流式问答失败:',
+        error
+      );
+
       throw error;
 
     } finally {
@@ -169,28 +315,19 @@ class ApiService {
     }
   }
 
-  /**
-   * 健康检查
-   * @returns {Promise<Object>} 健康检查结果
-   */
   async healthCheck() {
-    try {
-      // 调用本地8000端口的健康检查接口
-      const response = await fetch(`${this.baseUrl}/health`, {
-        method: 'GET'
-      });
+    const response = await fetch(
+      `${this.baseUrl}/health`
+    );
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`健康检查失败: ${response.status} ${errorText}`);
-        throw new Error(`健康检查失败: ${response.status} ${errorText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('健康检查失败:', error);
-      throw error;
+    if (!response.ok) {
+      throw new Error(
+        `健康检查失败: ${response.status
+        }`
+      );
     }
+
+    return await response.json();
   }
 }
 

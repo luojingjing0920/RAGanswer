@@ -95,7 +95,7 @@
     <!-- 底部信息 -->
     <footer class="footer">
       <div class="footer-content">
-        <p>© 2024 RAG智能文档问答系统 - 基于讯飞星火大模型</p>
+        <p>© 2026 RAG智能文档问答系统 · Self-built Retrieval Pipeline</p>
       </div>
     </footer>
 
@@ -108,12 +108,26 @@
         </div>
         <div class="modal-content">
           <p><strong>RAG智能文档问答系统</strong></p>
-          <p>这是一个基于检索增强生成（RAG）技术的智能文档问答原型系统，使用讯飞星火大模型提供强大的问答能力。</p>
+          <p>基于文档解析、重叠切块、
+             多语言 Embedding、
+             ChromaDB 向量检索和
+             大语言模型生成构建的
+             RAG 文档问答系统。
+          </p>
           <h4>功能特点：</h4>
           <ul>
-            <li>支持多种文档格式上传（doc/docx、pdf、md、txt）</li>
-            <li>基于文档内容进行精准问答</li>
-            <li>显示回答的参考来源</li>
+            <li>支持多种文档格式上传（docx、pdf、md、txt）
+                文档上传与索引
+            </li>
+            <li>基于 Top-K 语义检索获取
+                相关文档片段
+            </li>
+            <li>使用相似度阈值过滤
+                低相关内容
+            </li>
+            <li>支持 AI 回答流式输出
+                与参考来源追踪
+            </li>
             <li>支持本地文件和URL上传</li>
           </ul>
           <h4>使用说明：</h4>
@@ -175,7 +189,7 @@ export default {
     this.loadHistoryFiles();
     
     // 检查是否有未完成的上传
-    const lastFileId = localStorage.getItem('lastFileId');
+    const lastFileId = localStorage.getItem('lastRagDocumentId');
     if (lastFileId) {
       this.uploadedFileId = lastFileId;
       this.currentStep = 'qa';
@@ -195,7 +209,7 @@ export default {
       this.addToHistory(fileId, fileName);
 
       // 保存最后使用的文件ID
-      localStorage.setItem('lastFileId', fileId);
+      localStorage.setItem('lastRagDocumentId', fileId);
 
       // 切换到问答页面
       this.currentStep = 'qa';
@@ -210,7 +224,7 @@ export default {
     selectFile(fileId) {
       this.uploadedFileId = fileId;
       this.currentStep = 'qa';
-      localStorage.setItem('lastFileId', fileId);
+      localStorage.setItem('lastRagDocumentId', fileId);
       this.showMessage('已切换到选中的文档', 'info');
     },
     
@@ -218,13 +232,13 @@ export default {
     removeFile(fileId) {
       if (confirm('确定要删除这个文档记录吗？')) {
         this.uploadedFiles = this.uploadedFiles.filter(file => file.id !== fileId);
-        localStorage.setItem('uploadedFiles', JSON.stringify(this.uploadedFiles));
+        localStorage.setItem('ragUploadedFiles', JSON.stringify(this.uploadedFiles));
         
         // 如果删除的是当前使用的文件，重置状态
         if (this.uploadedFileId === fileId) {
           this.uploadedFileId = '';
           this.currentStep = 'init';
-          localStorage.removeItem('lastFileId');
+          localStorage.removeItem('lastRagDocumentId');
         }
         
         this.showMessage('文档记录已删除', 'info');
@@ -252,7 +266,7 @@ export default {
         }
 
         localStorage.setItem(
-          'uploadedFiles',
+          'ragUploadedFiles',
           JSON.stringify(this.uploadedFiles)
         );
       }
@@ -261,7 +275,7 @@ export default {
     // 加载历史文件
     loadHistoryFiles() {
       try {
-        const stored = localStorage.getItem('uploadedFiles');
+        const stored = localStorage.getItem('ragUploadedFiles');
         if (stored) {
           this.uploadedFiles = JSON.parse(stored);
         }
@@ -301,7 +315,7 @@ export default {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #f5f7fb;
 }
 
 /* 导航栏样式 */
@@ -482,6 +496,7 @@ export default {
   height: fit-content;
   max-height: calc(100vh - 200px);
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar-header {
@@ -566,6 +581,7 @@ export default {
   background: transparent;
   cursor: pointer;
   transition: all 0.2s ease;
+  min-width: 0;
 }
 
 .file-item.active {
@@ -600,9 +616,11 @@ export default {
 
 .file-meta {
   min-width: 0;
+  flex: 1;
 }
 
 .file-name {
+  display: block;
   overflow: hidden;
   margin-bottom: 3px;
   color: #303133;

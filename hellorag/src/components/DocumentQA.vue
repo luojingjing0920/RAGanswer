@@ -53,20 +53,104 @@
           </div>
           
           <!-- AI回答 -->
-          <div v-else-if="message.type === 'ai'" class="message ai-message">
-            <div class="message-header">
-              <span class="message-author">AI助手</span>
-              <span class="message-time">{{ formatTime(message.time) }}</span>
-            </div>
-            <div class="message-content markdown-body" v-html="formatAnswer(message.content)">
-            </div>
-            <div v-if="message.content" class="message-action">
-              <button class="copy-btn" @click="copyAnswer(message.content, index)">
-                {{ copiedMessageIndex === index ? '√已复制' : '复制' }}
-              </button>
-            </div>
+        <div
+          v-else-if="message.type === 'ai'"
+          class="message ai-message"
+>
+  <div class="message-header">
+    <span class="message-author">
+      AI助手
+    </span>
+
+    <span class="message-time">
+      {{ formatTime(message.time) }}
+    </span>
+  </div>
+
+  <!-- Markdown 回答 -->
+  <div
+    class="message-content markdown-body"
+    v-html="
+      formatAnswer(message.content)
+    "
+  ></div>
+
+  <!-- RAG 来源 -->
+  <div
+    v-if="
+      message.content &&
+      message.sources &&
+      message.sources.length
+    "
+    class="source-list"
+  >
+    <div class="source-title">
+      参考来源
+    </div>
+
+    <details
+      v-for="source in message.sources"
+              :key="
+                `${source.source_id}-${source.chunk_index}`
+             "
+              class="source-card"
+            >
+              <summary>
+                <span class="source-index">
+                  [{{ source.source_id }}]
+               </span>
+
+                <span class="source-file">
+                  {{ source.file_name }}
+                </span>
+
+               <span class="source-location">
+                 {{
+                   formatSourceLocation(
+                      source
+                    )
+                 }}
+                </span>
+              </summary>
+
+              <div class="source-meta">
+                语义相关度：
+                {{
+                  formatSimilarity(
+                   source.similarity
+                  )
+                }}
+              </div>
+
+              <div class="source-text">
+                {{ source.text }}
+              </div>
+            </details>
+          </div>
+
+          <div
+            v-if="message.content"
+           class="message-actions"
+          >
+            <button
+              class="copy-btn"
+              @click="
+                copyAnswer(
+                 message.content,
+                  index
+               )
+              "
+            >
+              {{
+                copiedMessageIndex ===
+                index
+                  ? '√已复制'
+                 : '复制'
+              }}
+            </button>
           </div>
         </div>
+    </div>
         
         <!-- 正在输入提示 -->
         <div v-if="isLoading && !hasReceivedChunk" class="message ai-message typing">
@@ -83,11 +167,11 @@
       <div class="question-input-section">
         <textarea 
           v-model="question" 
-          row="1"
+          rows="1"
           placeholder="请输入您的问题..."
           class="question-input"
           :disabled="isLoading"
-          @keyup.enter="handleQuestionKeydown"
+          @keydown="handleQuestionKeydown"
         ></textarea>
         <button 
           @click="sendQuestion"
@@ -167,57 +251,104 @@ export default {
 
     // 发送问题
     async sendQuestion() {
-      if (!this.canSendQuestion) return;
+      if (!this.canSendQuestion) {
+        return;
+      }
 
-      // 1. 保存用户当前的问题
-      const questionText = this.question.trim();
+      const questionText =
+        this.question.trim();
 
-      // 2. 先把用户的问题显示到聊天记录
-      this.addUserMessage(questionText);
+      this.addUserMessage(
+        questionText
+      );
 
-      // 3. 清空输入框，并进入加载状态
-      this.question = '';
-      this.isLoading = true;
-      this.hasReceivedChunk = false;
-      this.error = null;
+     this.question = '';
+     this.isLoading = true;
+     this.hasReceivedChunk = false;
+     this.error = null;
 
-      // 4. 先创建一条“空的 AI 消息”
-      this.addAIMessage('');
+     /**
+      * 先创建空 AI Message。
+      *
+      * 后面 answer 和 sources
+      * 都更新这一条。
+      */
+     this.addAIMessage('');
 
-      // 5. 记录这条 AI 消息在 conversation 数组里的位置
-     const aiMessageIndex = this.conversation.length - 1;
+      const aiMessageIndex =
+        this.conversation.length - 1;
 
-      try {
-        // 6. 调用我们刚刚写好的流式接口
-        await apiService.askQuestionStream(
-          this.fileId,
-          questionText,
+     try {
+       await apiService
+          .askQuestionStream(
+           this.fileId,
+            questionText,
 
-          // 7. 每收到一个 chunk，就会执行这个回调
-          (chunk, fullText) => {
-            // 收到第一块数据
-            this.hasReceivedChunk = true;
+            /**
+             * answer 事件
+             */
+            (chunk, fullText) => {
+              this.hasReceivedChunk =
+                true;
+            
+             const message =
+               this.conversation[
+                 aiMessageIndex
+               ];
 
-            // 更新同一条 AI 消息，而不是创建新的消息
-            this.conversation[aiMessageIndex].content = fullText;
+             if (!message) {
+               return;
+             }
 
-            // 回答变长以后，把聊天区域滚动到底部
-            this.scrollToBottom();
-          }
-        );
+             message.content =
+               fullText;
+
+             this.scrollToBottom();
+            },
+
+            /**
+             * sources 事件
+             */
+            (sources) => {
+              const message =
+                this.conversation[
+                  aiMessageIndex
+                ];
+            
+              if (!message) {
+                return;
+              }
+
+              message.sources =
+                sources;
+
+              this.scrollToBottom();
+            }
+          );
 
       } catch (err) {
-        console.error('问答错误:', err);
+        console.error(
+          'RAG 问答错误:',
+          err
+        );
 
         this.error =
-          err.message || '问答失败，请稍后重试';
+          err.message ||
+          '问答失败，请稍后重试';
 
-        // 如果这条 AI 消息还是空的，就直接删除
+        const message =
+          this.conversation[
+            aiMessageIndex
+          ];
+
         if (
-          this.conversation[aiMessageIndex] &&
-          !this.conversation[aiMessageIndex].content
+          message &&
+          !message.content
         ) {
-          this.conversation.splice(aiMessageIndex, 1);
+          this.conversation.splice(
+            aiMessageIndex,
+            1
+          );
         }
 
         this.addSystemMessage(
@@ -225,9 +356,10 @@ export default {
         );
 
       } finally {
-        // 8. 不管成功还是失败，都退出 loading 状态
-        this.isLoading = false;
-        this.hasReceivedChunk = false;
+       this.isLoading = false;
+
+       this.hasReceivedChunk =
+         false;
       }
     },
     
@@ -242,14 +374,17 @@ export default {
     },
     
     // 添加AI回答
-    addAIMessage(content) {
-      // 添加新消息
+    addAIMessage(
+      content,
+      sources = []
+    ) {
       this.conversation.push({
         type: 'ai',
         content,
+        sources,
         time: new Date()
       });
-      
+
       this.scrollToBottom();
     },
     
@@ -278,6 +413,47 @@ export default {
       });
     },
     
+    formatSourceLocation(
+      source
+    ) {
+      if (
+        source.page !== null &&
+        source.page !== undefined
+      ) {
+        return `第 ${source.page} 页`;
+      }
+
+      if (
+        source.chunk_index !==
+          null &&
+        source.chunk_index !==
+          undefined
+      ) {
+        return `片段 ${
+          source.chunk_index + 1
+        }`;
+      }
+
+      return '文档片段';
+    },
+
+    formatSimilarity(
+      similarity
+    ) {
+      if (
+        typeof similarity !==
+        'number'
+      ) {
+        return '-';
+      }
+
+      return `${
+        (
+         similarity * 100
+        ).toFixed(1)
+      }%`;
+    },
+
     // 格式化回答内容
     formatAnswer(content) {
       if (!content) return '';
@@ -803,6 +979,91 @@ h3 {
   margin: 16px 0;
   border: none;
   border-top: 1px solid #e5e7eb;
+}
+
+.source-list {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #e4e7ed;
+}
+
+.source-title {
+  margin-bottom: 8px;
+  color: #606266;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.source-card {
+  margin-bottom: 8px;
+  padding: 0;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.source-card summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 10px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+}
+
+.source-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.source-card summary::after {
+  content: '⌄';
+  margin-left: 4px;
+  color: #909399;
+}
+
+.source-card[open]
+summary::after {
+  content: '⌃';
+}
+
+.source-index {
+  flex-shrink: 0;
+  color: #409eff;
+  font-weight: 600;
+}
+
+.source-file {
+  min-width: 0;
+  overflow: hidden;
+  color: #303133;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-location {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: #909399;
+}
+
+.source-meta {
+  padding: 8px 10px 0;
+  border-top: 1px solid #f0f2f5;
+  color: #909399;
+  font-size: 11px;
+}
+
+.source-text {
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 8px 10px 10px;
+  color: #606266;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
 }
 
 /* 响应式设计 */

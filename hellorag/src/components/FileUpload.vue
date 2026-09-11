@@ -14,24 +14,16 @@
           <input type="file" 
                  ref="fileInput" 
                  @change="handleFileSelect"
-                 accept=".doc,.docx,.pdf,.md,.txt">
+                 accept=".docx,.pdf,.md,.txt">
           <div class="upload-prompt">
             <span v-if="selectedFile">已选择: {{ selectedFile.name }}</span>
             <span v-else>点击或拖拽文件到此处上传</span>
           </div>
         </div>
-        <p class="file-tips">支持 doc/docx、pdf、md、txt 格式，最大 20MB</p>
+        <p class="file-tips">支持docx、pdf、md、txt 格式，最大 20MB</p>
       </div>
     </div>
 
-    <div class="upload-options">
-      <label>
-        <input type="checkbox" v-model="needSummary"> 需要摘要
-      </label>
-      <label>
-        <input type="checkbox" v-model="stepByStep"> 分步处理
-      </label>
-    </div>
 
     <div class="upload-actions">
       <button @click="handleUpload" 
@@ -41,14 +33,34 @@
       </button>
     </div>
 
-    <div v-if="uploadResult" class="upload-result">
-      <h4>上传结果</h4>
-      <pre>{{ JSON.stringify(uploadResult, null, 2) }}</pre>
-      <div v-if="uploadResult.code === 0 && uploadResult.data" class="file-info">
-        <p>文件ID: {{ uploadResult.data.fileId }}</p>
-        <p>文件名: {{ uploadResult.data.fileName }}</p>
-        <p>文件大小: {{ formatFileSize(uploadResult.data.fileSize) }}</p>
-        <p>文件类型: {{ uploadResult.data.fileType }}</p>
+    <div
+      v-if="uploadResult"
+      class="upload-result"
+    >
+      <h4>文档索引完成</h4>
+
+      <div class="file-info">
+        <p>
+          文件名：
+          {{ uploadResult.file_name }}
+        </p>
+
+        <p>
+          文档类型：
+          {{ uploadResult.file_type }}
+        </p>
+
+        <p>
+          文档切片：
+          {{ uploadResult.chunk_count }}
+        </p>
+
+        <p>
+          向量维度：
+          {{
+            uploadResult.embedding_dimension
+          }}
+        </p>
       </div>
     </div>
 
@@ -59,127 +71,188 @@
 </template>
 
 <script>
-import apiService from '../services/apiService';
+import apiService
+  from '../services/apiService';
 
 export default {
   name: 'FileUpload',
+
   data() {
     return {
       selectedFile: null,
-      needSummary: false,
-      stepByStep: false,
+
       isDragging: false,
+
       isUploading: false,
+
       uploadResult: null,
+
       error: null
     };
   },
+
   computed: {
     canUpload() {
-      return this.selectedFile && !this.isUploading;
+      return (
+        this.selectedFile &&
+        !this.isUploading
+      );
     }
   },
+
   methods: {
-    // 处理文件选择
     handleFileSelect(event) {
-      const file = event.target.files[0];
+      const file =
+        event.target.files[0];
+
       if (file) {
         this.validateFile(file);
       }
-     },
+    },
 
-    // 拖拽相关处理
     handleDragOver() {
       this.isDragging = true;
     },
+
     handleDragLeave() {
       this.isDragging = false;
     },
+
     handleDrop(event) {
       this.isDragging = false;
-      const file = event.dataTransfer.files[0];
+
+      const file =
+        event.dataTransfer.files[0];
+
       if (file) {
         this.validateFile(file);
       }
     },
 
-    // 验证文件
     validateFile(file) {
-      // 检查文件大小
-      if (file.size > 20 * 1024 * 1024) {
-        this.error = '文件大小不能超过20MB';
+      if (
+        file.size >
+        20 * 1024 * 1024
+      ) {
+        this.error =
+          '文件大小不能超过20MB';
+
         return;
       }
 
-      // 检查文件类型
-      const validTypes = ['.docx', '.pdf', '.md', '.txt'];
-      const fileExt = file.name.toLowerCase().substr(file.name.lastIndexOf('.'));
-      if (!validTypes.includes(fileExt)) {
-        this.error = '不支持的文件类型，请上传docx、pdf、md、txt格式文件';
+      const validTypes = [
+        '.docx',
+        '.pdf',
+        '.md',
+        '.txt'
+      ];
+
+      const fileExt =
+        file.name
+          .toLowerCase()
+          .substring(
+            file.name.lastIndexOf('.')
+          );
+
+      if (
+        !validTypes.includes(
+          fileExt
+        )
+      ) {
+        this.error =
+          '不支持的文件类型，请上传 PDF、DOCX、MD、TXT 文件';
+
         return;
       }
 
       this.selectedFile = file;
-      this.fileUrl = ''; // 清空URL输入，避免冲突
+      this.uploadResult = null;
       this.error = null;
     },
 
-    // 处理上传
     async handleUpload() {
-      try {
-        if (this.selectedFile) {
-          await this.uploadLocalFile();
-        }
-      } catch (err) {
-        this.error = err.message || '上传失败，请稍后重试';
-        this.isUploading = false;
+      if (
+        !this.selectedFile ||
+        this.isUploading
+      ) {
+        return;
       }
+
+      await this.uploadLocalFile();
     },
 
-    // 上传本地文件 - 适配本地8000端口后端API
     async uploadLocalFile() {
       if (!this.selectedFile) {
         this.error = '请选择文件';
+
         return;
       }
 
       this.isUploading = true;
       this.error = null;
 
-      // 创建选项对象，使用新的API参数格式
-      const options = {
-        needSummary: this.needSummary,
-        stepByStep: this.stepByStep
-      };
+      /**
+       * 防止后面 selectedFile
+       * 被清空以后拿不到文件名。
+       */
+      const currentFile =
+        this.selectedFile;
 
       try {
-        // 直接传递File对象和选项对象
-        const result = await apiService.uploadDocument(this.selectedFile, options);
+        const result =
+          await apiService
+            .uploadDocument(
+              currentFile
+            );
 
-        if (result.code === 0) {
-          this.uploadResult = result;
-          // 触发父组件的事件，传递文件ID
-          this.$emit('file-uploaded', result.data.fileId, this.selectedFile.name);
-          // 上传成功后重置文件选择
-          this.$refs.fileInput.value = '';
+        if (
+          result.status ===
+            'success' &&
+          result.document_id
+        ) {
+          this.uploadResult =
+            result;
+
+          /**
+           * 新版本传给父组件的已经不是
+           * 讯飞 fileId，
+           * 而是我们自己的 document_id。
+           */
+          this.$emit(
+            'file-uploaded',
+            result.document_id,
+            result.file_name ||
+              currentFile.name
+          );
+
+          this.selectedFile = null;
+
+          if (
+            this.$refs.fileInput
+          ) {
+            this.$refs
+              .fileInput
+              .value = '';
+          }
+
         } else {
-          this.error = result.desc || '上传失败';
+          this.error =
+            '文档索引失败';
         }
+
       } catch (error) {
-        this.error = error.message || '上传失败，请稍后重试';
-        console.error('本地上传失败:', error);
+        console.error(
+          '本地文档索引失败:',
+          error
+        );
+
+        this.error =
+          error.message ||
+          '上传失败，请稍后重试';
+
       } finally {
         this.isUploading = false;
       }
-    },
-
-    // 格式化文件大小
-    formatFileSize(bytes) {
-      if (!bytes || bytes === 0) return '0 Bytes';
-      const k = 1024;
-      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
   }
 };
