@@ -112,10 +112,10 @@ export default {
       }
 
       // 检查文件类型
-      const validTypes = ['.doc', '.docx', '.pdf', '.md', '.txt'];
+      const validTypes = ['.docx', '.pdf', '.md', '.txt'];
       const fileExt = file.name.toLowerCase().substr(file.name.lastIndexOf('.'));
       if (!validTypes.includes(fileExt)) {
-        this.error = '不支持的文件类型，请上传doc/docx、pdf、md、txt格式文件';
+        this.error = '不支持的文件类型，请上传docx、pdf、md、txt格式文件';
         return;
       }
 

@@ -5,3 +5,5 @@ websocket-client==1.6.4
 requests-toolbelt==1.0.0
 python-multipart==0.0.6
 python-dotenv
+pypdf
+python-docx
