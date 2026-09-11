@@ -26,23 +26,6 @@
     
     <!-- 问答区域 -->
     <div class="qa-section" v-if="fileId">
-      <!-- 问题输入 -->
-      <div class="question-input-section">
-        <input 
-          v-model="question" 
-          type="text" 
-          placeholder="请输入您的问题..."
-          class="question-input"
-          @keyup.enter="sendQuestion"
-        >
-        <button 
-          @click="sendQuestion"
-          :disabled="!canSendQuestion || isLoading"
-          class="send-btn"
-        >
-          {{ isLoading ? '发送中...' : '发送' }}
-        </button>
-      </div>
       
       <!-- 对话历史 -->
       <div class="conversation-history" ref="conversationHistory">
@@ -77,6 +60,11 @@
             </div>
             <div class="message-content markdown-body" v-html="formatAnswer(message.content)">
             </div>
+            <div v-if="message.content" class="message-action">
+              <button class="copy-btn" @click="copyAnswer(message.content, index)">
+                {{ copiedMessageIndex === index ? '√已复制' : '复制' }}
+              </button>
+            </div>
           </div>
         </div>
         
@@ -89,6 +77,26 @@
             <span class="typing-indicator">正在生成回答...</span>
           </div>
         </div>
+      </div>
+
+      <!-- 问题输入 -->
+      <div class="question-input-section">
+        <textarea 
+          v-model="question" 
+          row="1"
+          placeholder="请输入您的问题..."
+          class="question-input"
+          :disabled="isLoading"
+          @keyup.enter="handleQuestionKeydown"
+        ></textarea>
+        <button 
+          @click="sendQuestion"
+          :disabled="!canSendQuestion || isLoading"
+          class="send-btn"
+          title="发送"
+        >
+          {{ isLoading ? '...' : '⬆️' }}
+        </button>
       </div>
       
       <!-- 操作按钮 -->
@@ -135,7 +143,9 @@ export default {
       error: null,
       isLoading: false,
       // 是否已经收到第一块流式回答
-      hasReceivedChunk: false
+      hasReceivedChunk: false,
+      // 需要知道具体是那一条回答被选中复制，因而需要用index来标记
+      copiedMessageIndex: null
     };
   },
   computed: {
@@ -148,6 +158,13 @@ export default {
     }
   },
   methods: {
+    handleQuestionKeydown(event) {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        this.sendQuestion();
+      }
+    },
+
     // 发送问题
     async sendQuestion() {
       if (!this.canSendQuestion) return;
@@ -272,8 +289,26 @@ export default {
 
       return DOMPurify.sanitize(html);
     },
-    
 
+    // 复制回答内容
+    async copyAnswer(content, index) {
+      if (!content) return;
+
+      try {
+        await navigator.clipboard.writeText(content);
+
+        this.copiedMessageIndex = index;
+
+        setTimeout(() => {
+          if (this.copiedMessageIndex === index) {
+            this.copiedMessageIndex = null;
+          }
+        }, 1500);
+      } catch (error) {
+        console.error('复制回答失败:', error);
+        this.error = '复制失败，请手动复制回答内容';
+      }
+    },
     
     // 滚动到底部
     scrollToBottom() {
@@ -442,35 +477,63 @@ h3 {
 
 .question-input-section {
   display: flex;
-  padding: 15px;
-  border-top: 1px solid #eee;
+  align-items: flex-end;
   gap: 10px;
+  padding: 14px 16px;
+  border-top: 1px solid #ebeef5;
+  background: white;
 }
 
 .question-input {
   flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+
+  min-height: 44px;
+  max-height: 120px;
+
+  padding: 11px 14px;
+
+  border: 1px solid #dcdfe6;
+  border-radius: 12px;
+
+  font-family: inherit;
   font-size: 14px;
+  line-height: 20px;
+
+  resize: none;
+  outline: none;
+
+  transition: border-color 0.2s,
+              box-shadow 0.2s;
+}
+
+.question-input:focus {
+  border-color: #409eff;
+  box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.1);
 }
 
 .send-btn {
-  padding: 8px 20px;
-  background: #1989fa;
-  color: white;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+
+  padding: 0;
+
   border: none;
-  border-radius: 4px;
+  border-radius: 12px;
+
+  background: #409eff;
+  color: white;
+
+  font-size: 22px;
   cursor: pointer;
-  font-size: 14px;
 }
 
 .send-btn:hover:not(:disabled) {
-  background: #409eff;
+  background: #337ecc;
 }
 
 .send-btn:disabled {
-  background: #ccc;
+  background: #dcdfe6;
   cursor: not-allowed;
 }
 
@@ -529,6 +592,30 @@ h3 {
 .message-content {
   font-size: 14px;
   line-height: 1.6;
+}
+
+.message-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #ebeef5;
+}
+
+.copy-btn {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #909399;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.copy-btn:hover {
+  background: #eef4ff;
+  color: #409eff;
 }
 
 .sources {
@@ -736,5 +823,7 @@ h3 {
   .document-qa-container {
     padding: 15px;
   }
+
+
 }
 </style>
