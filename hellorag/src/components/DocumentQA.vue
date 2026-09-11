@@ -12,9 +12,42 @@
             当前文档
           </div>
 
-          <div class="document-name">
-            {{ fileName }}
-          </div>
+          <div class="retrieval-scope">
+            <span class="scope-label">
+              检索范围
+            </span>
+
+          <button
+            class="scope-btn"
+            :class="{
+              active:
+              retrievalScope === 'current'
+            }"
+            @click="
+              retrievalScope = 'current'
+            "
+          >
+            当前文档
+          </button>
+
+          <button
+            class="scope-btn"
+            :class="{
+              active:
+              retrievalScope === 'all'
+            }"
+           @click="
+              retrievalScope = 'all'
+            "
+          >
+            全部文档
+          </button>
+        </div>
+
+        <div class="document-name">
+           {{ fileName }}
+        </div>
+
         </div>
       </div>
 
@@ -229,7 +262,8 @@ export default {
       // 是否已经收到第一块流式回答
       hasReceivedChunk: false,
       // 需要知道具体是那一条回答被选中复制，因而需要用index来标记
-      copiedMessageIndex: null
+      copiedMessageIndex: null,
+      retrievalScope: 'current'
     };
   },
   computed: {
@@ -279,36 +313,33 @@ export default {
         this.conversation.length - 1;
 
      try {
+      const targetDocumentId =
+        this.retrievalScope === 'current'
+          ? this.fileId
+         : null;
        await apiService
           .askQuestionStream(
-           this.fileId,
+            targetDocumentId,
             questionText,
 
-            /**
-             * answer 事件
-             */
             (chunk, fullText) => {
-              this.hasReceivedChunk =
-                true;
+              this.hasReceivedChunk = true;
             
-             const message =
-               this.conversation[
-                 aiMessageIndex
-               ];
-
-             if (!message) {
-               return;
-             }
-
-             message.content =
-               fullText;
-
-             this.scrollToBottom();
+              const message =
+                this.conversation[
+                  aiMessageIndex
+                ];
+            
+              if (!message) {
+                return;
+              }
+            
+              message.content =
+                fullText;
+            
+              this.scrollToBottom();
             },
-
-            /**
-             * sources 事件
-             */
+          
             (sources) => {
               const message =
                 this.conversation[
@@ -318,10 +349,10 @@ export default {
               if (!message) {
                 return;
               }
-
+            
               message.sources =
                 sources;
-
+            
               this.scrollToBottom();
             }
           );
@@ -1085,6 +1116,41 @@ summary::after {
     padding: 15px;
   }
 
+.retrieval-scope {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.scope-label {
+  margin-right: 4px;
+  color: #909399;
+  font-size: 12px;
+}
+
+.scope-btn {
+  padding: 5px 10px;
+  border: 1px solid #dcdfe6;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #606266;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.scope-btn:hover {
+  border-color: #a0cfff;
+  color: #409eff;
+}
+
+.scope-btn.active {
+  border-color: #409eff;
+  background: #ecf5ff;
+  color: #409eff;
+}
 
 }
 </style>

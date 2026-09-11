@@ -22,6 +22,8 @@ from rag.ingestion_service import (
 
 from rag.rag_service import RAGService
 
+from rag.vector_store import VectorStore
+
 load_dotenv()
 
 # 创建FastAPI应用实例
@@ -63,11 +65,10 @@ class QARequest(BaseModel):
 
 # 新版自建 RAG 问答接口使用
 class RAGQARequest(BaseModel):
-    document_id: str
+    document_id: str | None = None
     question: str
-    top_k: int = 3
-    similarity_threshold: float = 0.5
-
+    top_k: int = 4
+    similarity_threshold: float | None = None
 @app.get("/")
 async def root():
     return {"message": "文档问答系统API服务运行中"}
@@ -157,6 +158,45 @@ async def upload_rag_document(
             temp_path.unlink(
                 missing_ok=True
             )
+
+@app.delete(
+    "/api/rag/documents/{document_id}",
+    summary="删除 RAG 文档",
+    description="删除指定文档在 ChromaDB 中保存的所有 Chunk 和向量",
+)
+async def delete_rag_document(
+    document_id: str
+):
+    """
+    删除一篇已经索引的 RAG 文档。
+    """
+
+    document_id = document_id.strip()
+
+    if not document_id:
+        raise HTTPException(
+            status_code=400,
+            detail="document_id 不能为空",
+        )
+
+    try:
+        vector_store = VectorStore()
+
+        await asyncio.to_thread(
+            vector_store.delete_document,
+            document_id,
+        )
+
+        return {
+            "status": "success",
+            "document_id": document_id,
+        }
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"删除文档失败：{exc}",
+        ) from exc
 
 @app.post(
     "/api/rag/qa",

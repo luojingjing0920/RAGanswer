@@ -55,6 +55,42 @@ class ApiService {
   }
 
   /**
+ * 删除已经索引的 RAG 文档
+ */
+  async deleteDocument(documentId) {
+    if (!documentId) {
+      throw new Error(
+        'documentId 不能为空'
+      );
+    }
+
+    const response = await fetch(
+      `${this.baseUrl
+      }/api/rag/documents/${encodeURIComponent(
+        documentId
+      )
+      }`,
+      {
+        method: 'DELETE'
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response
+        .json()
+        .catch(() => null);
+
+      throw new Error(
+        errorData?.detail ||
+        `删除文档失败: ${response.status
+        }`
+      );
+    }
+
+    return await response.json();
+  }
+
+  /**
    * 非流式 RAG 问答
    */
   async askQuestion(
@@ -75,9 +111,7 @@ class ApiService {
         body: JSON.stringify({
           document_id: documentId,
           question,
-          top_k: options.topK ?? 3,
-          similarity_threshold:
-            options.similarityThreshold ?? 0.5
+          top_k: options.topK ?? 4,
         })
       }
     );
@@ -136,10 +170,7 @@ class ApiService {
             document_id: documentId,
             question,
             top_k:
-              options.topK ?? 3,
-            similarity_threshold:
-              options.similarityThreshold ??
-              0.5
+              options.topK ?? 4,
           }),
 
           signal: controller.signal

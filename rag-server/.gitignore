@@ -19,3 +19,5 @@ Thumbs.db
 
 # Local test files
 request.json
+
+data/chroma/

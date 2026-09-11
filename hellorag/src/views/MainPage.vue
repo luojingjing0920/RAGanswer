@@ -150,6 +150,7 @@
 <script>
 import FileUpload from '../components/FileUpload.vue';
 import DocumentQA from '../components/DocumentQA.vue';
+import apiService from '../services/apiService';
 
 export default {
   name: 'MainPage',
@@ -229,19 +230,84 @@ export default {
     },
     
     // 从历史记录中移除文件
-    removeFile(fileId) {
-      if (confirm('确定要删除这个文档记录吗？')) {
-        this.uploadedFiles = this.uploadedFiles.filter(file => file.id !== fileId);
-        localStorage.setItem('ragUploadedFiles', JSON.stringify(this.uploadedFiles));
+    async removeFile(fileId) {
+      const confirmed = confirm(
+        '确定要删除这个文档吗？删除后将同时移除该文档的向量索引。'
+      );
         
-        // 如果删除的是当前使用的文件，重置状态
-        if (this.uploadedFileId === fileId) {
+      if (!confirmed) {
+        return;
+      }
+    
+      try {
+        /**
+         * 先删除后端向量。
+         *
+         * 后端成功后，
+         * 再删除前端 LocalStorage。
+         */
+        await apiService.deleteDocument(
+          fileId
+        );
+      
+        this.uploadedFiles =
+          this.uploadedFiles.filter(
+            file => file.id !== fileId
+          );
+      
+        localStorage.setItem(
+          'ragUploadedFiles',
+          JSON.stringify(
+            this.uploadedFiles
+          )
+        );
+      
+        if (
+          this.uploadedFileId === fileId
+        ) {
           this.uploadedFileId = '';
-          this.currentStep = 'init';
-          localStorage.removeItem('lastRagDocumentId');
-        }
         
-        this.showMessage('文档记录已删除', 'info');
+          localStorage.removeItem(
+            'lastRagDocumentId'
+          );
+        
+          if (
+            this.uploadedFiles.length > 0
+          ) {
+            const nextFile =
+              this.uploadedFiles[0];
+          
+            this.uploadedFileId =
+              nextFile.id;
+          
+            localStorage.setItem(
+              'lastRagDocumentId',
+              nextFile.id
+            );
+          
+            this.currentStep = 'qa';
+          
+          } else {
+            this.currentStep = 'init';
+          }
+        }
+      
+        this.showMessage(
+          '文档及向量索引已删除',
+          'success'
+        );
+      
+      } catch (error) {
+        console.error(
+          '删除文档失败:',
+          error
+        );
+      
+        this.showMessage(
+          error.message ||
+          '删除文档失败',
+          'error'
+        );
       }
     },
     

@@ -38,11 +38,11 @@ class RAGService:
         )
 
     def answer(
-        self,
-        question: str,
-        document_id: str | None = None,
-        top_k: int = 3,
-        similarity_threshold: float = 0.5,
+            self,
+            question: str,
+            document_id: str | None = None,
+            top_k: int = 4,
+            similarity_threshold: float | None = None,
     ) -> dict:
         """
         根据知识库文档回答问题。
@@ -55,13 +55,30 @@ class RAGService:
                 "question 不能为空"
             )
 
+        # 当前文档模式：
+        # 已经通过 document_id 限定了搜索范围，
+        # 因此使用更宽松的阈值，提高召回率。
+        #
+        # 全部文档模式：
+        # 搜索空间更大，使用稍高阈值，
+        # 降低无关文档被召回的概率。
+        effective_threshold = (
+            similarity_threshold
+            if similarity_threshold is not None
+            else (
+                0.05
+                if document_id
+                else 0.10
+            )
+        )
+
         retrieval_results = (
             self.retriever.retrieve(
                 query=question,
                 top_k=top_k,
                 document_id=document_id,
                 similarity_threshold=(
-                    similarity_threshold
+                    effective_threshold
                 ),
             )
         )
@@ -97,8 +114,8 @@ class RAGService:
             self,
             question: str,
             document_id: str | None = None,
-            top_k: int = 3,
-            similarity_threshold: float = 0.5,
+            top_k: int = 4,
+            similarity_threshold: float | None = None,
     ):
         """
         流式 RAG 问答。
@@ -127,13 +144,24 @@ class RAGService:
                 "question 不能为空"
             )
 
+        # 动态选择默认相似度阈值
+        effective_threshold = (
+            similarity_threshold
+            if similarity_threshold is not None
+            else (
+                0.05
+                if document_id
+                else 0.10
+            )
+        )
+
         retrieval_results = (
             self.retriever.retrieve(
                 query=question,
                 top_k=top_k,
                 document_id=document_id,
                 similarity_threshold=(
-                    similarity_threshold
+                    effective_threshold
                 ),
             )
         )
@@ -162,13 +190,13 @@ class RAGService:
             retrieval_results
         )
 
-        # 先告诉前端本次回答引用了哪些资料。
+        # 先发送引用来源
         yield {
             "type": "sources",
             "data": sources,
         }
 
-        # 再持续输出模型回答。
+        # 再流式输出模型回答
         for delta in (
                 self.llm_service
                         .generate_stream(
