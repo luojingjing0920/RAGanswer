@@ -8,6 +8,7 @@ import json
 import websocket
 import _thread as thread
 import ssl
+import os
 
 class Document_Q_And_A:
     def __init__(self, APPId, APISecret, TimeStamp, OriginUrl):
@@ -121,8 +122,8 @@ def on_message(ws, message):
 
 if __name__ == '__main__':
     # 先去 开放平台控制台（https://console.xfyun.cn）创建应用，获取下列应用信息进行替换
-    APPId = "e8af8074"
-    APISecret = "NWUyNmI0ODFkNDVkY2Q2MjAzMzQ0YmU1"
+    APPId = os.getenv("XFYUN_APP_ID")
+    APISecret = os.getenv("XFYUN_API_SECRET")
 
     curTime = str(int(time.time()))
     OriginUrl = "wss://chatdoc.xfyun.cn/openapi/chat"
