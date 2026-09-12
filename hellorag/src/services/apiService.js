@@ -9,6 +9,31 @@ class ApiService {
   }
 
   /**
+ * 获取当前知识库中真实存在的文档
+ */
+  async getDocuments() {
+    const response = await fetch(
+      `${this.baseUrl}/api/rag/documents`,
+      {
+        method: 'GET'
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response
+        .json()
+        .catch(() => null);
+
+      throw new Error(
+        errorData?.detail ||
+        `获取文档列表失败: ${response.status}`
+      );
+    }
+
+    return await response.json();
+  }
+
+  /**
    * 上传并索引文档
    *
    * Document
