@@ -2,7 +2,9 @@
 
 # 📚 RAG 智能文档问答系统
 
-**基于 Vue 3 + FastAPI 构建的多文档智能问答应用，正在由第三方文档问答能力逐步升级为自建 RAG Pipeline**
+**基于 Vue 3 + FastAPI 构建的多文档 RAG 智能问答应用**
+
+支持本地文档解析、重叠切块、多语言向量化、ChromaDB 语义检索、跨文档问答、LLM 流式生成与可追溯来源展示。
 
 <img src="https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs&logoColor=white" />
 <img src="https://img.shields.io/badge/Vite-Frontend-646CFF?logo=vite&logoColor=white" />
@@ -10,7 +12,7 @@
 <img src="https://img.shields.io/badge/Chroma-Vector_DB-orange" />
 <img src="https://img.shields.io/badge/FastEmbed-Embedding-blue" />
 <img src="https://img.shields.io/badge/RAG-Self_Built_Retrieval-blueviolet" />
-<img src="https://img.shields.io/badge/Streaming-Response-success" />
+<img src="https://img.shields.io/badge/Streaming-NDJSON-success" />
 
 </div>
 
@@ -18,80 +20,57 @@
 
 ## ✨ 项目简介
 
-本项目面向 **“基于个人文档进行智能检索与问答”** 的使用场景，支持用户上传本地文档，并围绕指定文档进行连续提问。
+RAG 智能文档问答系统是一个面向个人文档知识库场景的 AI 应用。
 
-项目最初基于第三方文档问答服务完成文档上传、检索与回答生成，在此基础上已经完成前端工作台、历史文档管理、流式回答、Markdown 渲染等功能。
-
-目前项目正在进一步重构核心 RAG 能力。
-
-后端已经实现一套独立的本地 Retrieval Pipeline：
+用户可以上传 PDF、DOCX、TXT、Markdown 等本地文档，系统会自动完成：
 
 ```text
-Document
-    ↓
-Document Parser
-    ↓
-Section
-    ↓
-Overlapping Chunking
-    ↓
-Multilingual Embedding
-    ↓
-ChromaDB
-    ↓
-Query Embedding
-    ↓
-Top-K Retrieval
-    ↓
-Similarity Threshold
-    ↓
-Relevant Context
+文档解析
+   ↓
+文本切块
+   ↓
+Embedding
+   ↓
+向量存储
+   ↓
+语义检索
+   ↓
+上下文构建
+   ↓
+LLM 生成
+   ↓
+流式回答
+   ↓
+来源追踪
 ```
 
-当前自建检索链路已经可以完成：
+与仅调用第三方“文档问答 API”的方案不同，本项目的核心 Retrieval Pipeline 由项目自身实现，包括：
 
-- PDF / DOCX / TXT / Markdown 文档解析
-- PDF 页码信息保留
-- 固定窗口 + Overlap 文本切分
-- 多语言文本向量化
-- ChromaDB 本地持久化
-- 指定文档 Top-K 语义检索
-- 相似度阈值过滤
-- 原始 Chunk 与来源 Metadata 保留
-- RAG Context 与 Source 信息构建
+- Document Parser
+- Overlapping Chunker
+- Embedding Service
+- ChromaDB Vector Store
+- Top-K Retriever
+- Similarity Threshold
+- Context Builder
+- Source Metadata
 
-真实 PDF 测试中已经完成：
-
-```text
-9 个文档 Section
-        ↓
-24 个 Chunk
-        ↓
-24 个 384 维向量
-        ↓
-ChromaDB
-        ↓
-问题语义检索
-        ↓
-返回相关原文片段
-```
-
-对于明显不存在于文档中的问题，Retriever 可以通过 Similarity Threshold 将低相关度结果过滤，从 Retrieval 阶段减少无依据内容进入后续生成模型。
+生成阶段通过远程大语言模型完成，并使用检索结果约束回答范围，从而构成完整的 RAG Workflow。
 
 ---
 
-## 🚀 当前核心功能
+## 🚀 核心功能
 
-### 📄 多格式文档处理
+### 📄 多格式文档解析
 
-当前自建 Parser 支持：
+支持：
 
 - PDF
 - DOCX
 - TXT
 - Markdown
 
-不同格式统一转换为内部文档结构：
+统一转换为内部文档结构：
 
 ```text
 Document
@@ -102,28 +81,28 @@ Document
     └── page
 ```
 
-其中 PDF 按页解析，并保留真实页码信息。
+其中：
 
-DOCX、TXT、Markdown 不伪造页码，在后续引用展示中使用 Chunk / Fragment 信息定位。
+- PDF 按页解析并保留真实页码；
+- DOCX / TXT / Markdown 不伪造页码；
+- 非分页文档后续使用 Chunk / Fragment 信息进行来源定位。
 
 > 当前暂不支持旧版 `.doc` 文件。
 
-> 当前暂不支持扫描型 PDF OCR，仅支持可以提取文本内容的 PDF。
+> 当前暂不包含 OCR，扫描型 PDF 需要先具备可提取文本层。
 
 ---
 
-### ✂️ Overlapping Chunking
+### ✂️ 自定义 Overlapping Chunking
 
-项目没有直接依赖 LangChain 等框架完成文本切分，而是自行实现基础 Chunker。
+项目没有依赖 LangChain 完成基础切块，而是自行实现固定窗口 + Overlap Chunker。
 
-当前默认参数：
+默认策略：
 
 ```text
 chunk_size = 500
 overlap = 100
 ```
-
-Chunk 之间保留一定重叠区域，用于降低关键语义恰好被切割在两个 Chunk 边界时造成的信息损失。
 
 例如：
 
@@ -141,6 +120,8 @@ start = 800
 end   = ...
 ```
 
+Overlap 可以降低关键信息恰好位于 Chunk 边界时造成的语义损失。
+
 每个 Chunk 同时保留：
 
 ```text
@@ -154,18 +135,13 @@ end_char
 text
 ```
 
-这些 Metadata 后续可以继续用于：
-
-- 来源追踪
-- PDF 页码展示
-- 文档范围过滤
-- Chunk 定位
+这些 Metadata 会贯穿后续 Vector Store、Retrieval 和 Source Citation。
 
 ---
 
-### 🧠 多语言 Embedding
+### 🧠 本地多语言 Embedding
 
-项目使用：
+Embedding 层使用：
 
 ```text
 FastEmbed
@@ -173,9 +149,7 @@ FastEmbed
 ONNX Runtime
 ```
 
-在本地完成 Embedding 推理。
-
-当前模型：
+当前使用多语言模型：
 
 ```text
 sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
@@ -187,54 +161,44 @@ Embedding Dimension：
 384
 ```
 
-即每个文档 Chunk 会被转换为一个 384 维语义向量：
+处理流程：
 
 ```text
-Chunk Text
-    ↓
+Document Chunk
+     ↓
 Embedding Model
-    ↓
-[0.12, -0.08, 0.31, ...]
-    ↓
-384 Dimensions
+     ↓
+384-d Vector
 ```
 
-用户问题同样转换为相同维度的 Query Vector：
+用户问题同样转换为：
 
 ```text
 Question
-    ↓
-Embedding
-    ↓
+   ↓
+Query Embedding
+   ↓
 384-d Query Vector
 ```
 
-随后进入同一向量空间进行语义相似度检索。
+随后进入相同向量空间进行语义检索。
 
-选择 FastEmbed + ONNX Runtime 的原因主要是降低本地部署和推理成本，使项目可以在无独立 NVIDIA GPU 的普通开发设备上运行 Embedding Pipeline。
+选择 FastEmbed + ONNX Runtime，主要是为了降低普通开发设备上的本地推理成本，在没有独立 NVIDIA GPU 的环境下也能够运行 Embedding Pipeline。
 
-Embedding 能力被独立封装在：
-
-```text
-EmbeddingService
-```
-
-中，上层模块只依赖：
+Embedding 能力被独立封装，上层模块只依赖：
 
 ```text
 embed_texts()
 embed_query()
 ```
 
-因此后续可以替换 Embedding Model，而无需重写 Parser、Vector Store 和 Retriever。
+因此后续可以替换 Embedding Model，而不需要重写 Parser、Chunker 和 Retriever。
 
 ---
 
-### 🗄️ ChromaDB 向量持久化
+### 🗄️ ChromaDB 向量存储
 
-项目使用 ChromaDB 作为本地 Vector Store。
-
-数据库采用持久化模式：
+项目使用 ChromaDB 作为本地 Vector Store，并使用持久化存储。
 
 ```text
 rag-server/
@@ -242,7 +206,7 @@ rag-server/
     └── chroma/
 ```
 
-每个 Chunk 写入数据库时保存：
+每个 Chunk 入库时保存：
 
 ```text
 Embedding
@@ -264,24 +228,18 @@ Section Index
 Character Range
 ```
 
-其中 VectorStore 只负责：
+Vector Store 负责：
 
-```text
-向量存储
-向量查询
-文档删除
-数据库统计
-```
+- Chunk Vector 写入
+- 向量查询
+- 文档过滤
+- 文档删除
+- 文档列表聚合
+- 数据库统计
 
-Embedding 逻辑与 Vector Store 相互解耦。
+Embedding 与 Vector Store 相互解耦。
 
-当前向量检索使用：
-
-```text
-Cosine Distance
-```
-
-并将查询结果进一步转换为更加直观的：
+向量检索使用 Cosine Distance，并将结果转换为更直观的 Similarity：
 
 ```text
 similarity = 1 - distance
@@ -291,29 +249,21 @@ similarity = 1 - distance
 
 ### 🔍 Top-K Semantic Retrieval
 
-用户输入问题后，系统首先生成 Query Embedding：
+用户输入问题以后：
 
 ```text
 Question
-    ↓
+   ↓
 EmbeddingService
-    ↓
+   ↓
 Query Vector
-```
-
-再通过 ChromaDB 与文档 Chunk Vector 进行相似度检索：
-
-```text
-Query Vector
-      ↓
+   ↓
 ChromaDB
-      ↓
-Cosine Similarity
-      ↓
-Top-K
+   ↓
+Top-K Retrieval
 ```
 
-Retriever 当前支持：
+Retriever 支持：
 
 ```text
 query
@@ -322,99 +272,109 @@ document_id
 similarity_threshold
 ```
 
-因此既可以：
+因此既支持：
 
 ```text
-在指定文档中检索
+当前文档检索
 ```
 
-也为后续：
+也支持：
 
 ```text
-跨文档知识库检索
+全部文档检索
 ```
 
-保留扩展能力。
+全部文档模式下不再附加 `document_id` Filter，可以从整个知识库中进行语义召回。
 
-真实文档测试中，对于问题：
+---
+
+### 🗂️ 当前文档 / 全部文档检索
+
+系统提供两种检索范围：
+
+#### 当前文档
+
+只允许 Retriever 在当前选中文档的 Chunk 中查询：
 
 ```text
-实习期间主要完成了哪些工作？
+document_id = current_document_id
 ```
 
-Retriever 成功召回了包含以下内容的相关 Chunk：
+适合：
+
+- 单篇论文问答
+- 单份报告总结
+- 当前文件内容分析
+
+#### 全部文档
+
+不限制单一 `document_id`：
 
 ```text
-前端开发
-React
-Ant Design
-表单业务逻辑
-前后端接口联调
-业务流程分析
-项目维护
-需求沟通
+document_id = None
 ```
 
-说明当前 Retrieval 已具备基础语义召回能力，而不是简单的字符串完全匹配。
+Retriever 可以在整个知识库中搜索 Top-K Chunk。
+
+适合：
+
+- 跨文档总结
+- 多份材料信息对比
+- 综合知识库问答
+
+前端会在 Source 区域展示本次回答实际命中了多少个文档。
 
 ---
 
 ### 🛡️ Similarity Threshold
 
-Top-K 并不意味着返回的内容一定与问题真正相关。
+Vector Database 即使面对完全无关的问题，也始终可以返回“相对最近”的向量。
 
-即使用户提出一个完全无关的问题，Vector Database 仍然可以从现有向量中找出“最接近”的几个结果。
+因此仅使用 Top-K 并不能保证 Retrieval Result 真正相关。
 
-因此 Retriever 增加：
+项目在 Retriever 中增加 Similarity Threshold：
 
 ```text
+Vector Top-K
+     ↓
 Similarity Threshold
-```
-
-处理过程：
-
-```text
-Top-K Results
-      ↓
-Similarity Filter
-      ↓
+     ↓
 Relevant Results
 ```
 
-例如测试问题：
+Top-K 负责：
 
 ```text
-这份报告有没有介绍量子纠缠实验？
+找到相对最接近的内容
 ```
 
-在当前文档中不存在相关内容。
-
-设置：
+Threshold 负责：
 
 ```text
-similarity_threshold = 0.5
+判断内容是否足够相关
 ```
 
-以后，检索结果：
+当没有足够相关的 Chunk 时，系统不会继续把低相关内容作为事实依据发送给生成模型。
+
+最终回答：
 
 ```text
-result count: 0
+根据当前文档无法确定。
 ```
 
-即：
+或：
 
 ```text
-没有足够相关的文档证据
-→ 不将无关 Chunk 继续发送给生成模型
+根据当前知识库无法确定。
 ```
 
-这也是项目降低 RAG 无依据回答的重要机制之一。
+用于降低模型脱离文档内容回答的概率。
 
 ---
 
 ### 📚 Context Builder
 
-Retriever 返回相关 Chunk 后，系统通过 Context Builder 将结果统一整理为后续 LLM 可以理解的参考资料格式。
+Retriever 返回 Chunk 后，Context Builder 将结果转换为 LLM 可消费的参考资料。
 
 例如：
 
@@ -432,7 +392,7 @@ Retriever 返回相关 Chunk 后，系统通过 Context Builder 将结果统一�
 ...
 ```
 
-同时单独保留结构化 Sources：
+同时保留独立的结构化 Sources：
 
 ```text
 source_id
@@ -443,261 +403,215 @@ similarity
 text
 ```
 
-Context 与 Source Metadata 分离设计，为后续实现：
+从而形成：
 
 ```text
-LLM 引用编号
-+
-前端 Source Card
-+
-PDF 页码溯源
+Retrieval Results
+       ↓
+Context Builder
+       ↓
+┌───────────────┐
+│ LLM Context   │
+└───────────────┘
+
+       +
+
+┌───────────────┐
+│ Source Data   │
+└───────────────┘
 ```
 
-提供数据基础。
+Context 用于模型生成。
+
+Source Data 用于前端来源展示。
 
 ---
 
-## 💬 文档问答
+## 🤖 RAG Generation
 
-现有版本已经具备完整的前端文档问答界面。
-
-用户可以：
-
-- 上传本地文档
-- 选择当前文档
-- 围绕当前文档输入问题
-- 查看连续对话
-- 查看 AI 流式生成结果
-- 切换历史文档
-- 删除历史文档
-
-当前线上问答链路仍保留原第三方文档问答能力。
-
-项目正在将其逐步迁移为：
+完整问答链路为：
 
 ```text
-Question
-    ↓
-Self-built Retriever
-    ↓
-Top-K Context
-    ↓
-LLM
-    ↓
-Streaming Answer
-    ↓
-Source Citation
+User Question
+      ↓
+Query Embedding
+      ↓
+ChromaDB
+      ↓
+Top-K Retrieval
+      ↓
+Similarity Threshold
+      ↓
+Relevant Chunks
+      ↓
+Context Builder
+      ↓
+Prompt
+      ↓
+Large Language Model
+      ↓
+Grounded Answer
 ```
 
-迁移过程中保留原有链路，避免在新 RAG Pipeline 尚未全部完成时破坏已有可运行功能。
+生成阶段通过远程 LLM API 完成。
+
+RAG Prompt 要求模型：
+
+- 优先依据提供的参考资料回答；
+- 不将模型自身知识作为文档事实；
+- 资料不足时明确说明无法确定；
+- 使用 `[1]`、`[2]` 等编号引用来源。
+
+例如：
+
+```text
+根据参考资料，项目后端使用 FastAPI 构建 [1]，
+并使用 ChromaDB 保存文档向量 [2]。
+```
 
 ---
 
-## ⚡ AI 回答流式输出
+## 🌊 NDJSON 流式问答
 
-项目已经实现从后端到浏览器的完整流式输出链路。
+项目实现了从 LLM 到浏览器的完整流式输出。
 
-原有 AI 服务通过 WebSocket 分段返回生成内容。
-
-后端使用：
+整体流程：
 
 ```text
-WebSocket
-    ↓
-on_message
-    ↓
-Queue
-    ↓
-Generator
-    ↓
+LLM Streaming
+      ↓
+FastAPI
+      ↓
+NDJSON Event
+      ↓
 StreamingResponse
-```
-
-前端使用：
-
-```text
+      ↓
 Fetch
-    ↓
-response.body
-    ↓
+      ↓
 ReadableStream
-    ↓
-getReader()
-    ↓
-reader.read()
-    ↓
+      ↓
 TextDecoder
-    ↓
+      ↓
 Vue Reactive State
 ```
 
-因此用户不需要等待模型完整生成回答后才能看到结果。
+后端返回的流式事件包括：
 
-模型生成内容会逐步显示：
+```json
+{"type":"sources","data":[...]}
+{"type":"answer","delta":"根据"}
+{"type":"answer","delta":"参考资料"}
+{"type":"answer","delta":"，"}
+{"type":"done"}
+```
+
+其中：
+
+- `sources`：返回本次 Retrieval 的来源；
+- `answer`：返回模型生成增量；
+- `done`：表示当前流式回答结束。
+
+相比等待完整 JSON 返回，用户可以更早看到模型生成结果，降低长回答场景中的感知等待时间。
+
+---
+
+## 🖥️ Vue 流式增量渲染
+
+前端通过 Fetch 获取 Response 后：
+
+```javascript
+const reader =
+  response.body.getReader();
+```
+
+不断读取：
+
+```javascript
+const { done, value } =
+  await reader.read();
+```
+
+再使用：
+
+```javascript
+const decoder =
+  new TextDecoder('utf-8');
+```
+
+处理增量数据。
+
+AI Message 会随着 `answer delta` 持续更新：
 
 ```text
 AI：根据
 
 ↓
 
-AI：根据文档
+AI：根据参考资料
 
 ↓
 
-AI：根据文档内容……
+AI：根据参考资料，项目……
 ```
 
-相比完整 JSON Response，可以降低长回答场景下用户等待过程中的感知延迟。
+从而实现类似主流 AI 产品的逐字 / 分段回答体验。
 
 ---
 
-## 🌊 后端流式通信设计
+## 🔗 可追溯来源
 
-WebSocket 与 HTTP Streaming 属于两套不同的通信过程。
+每条 AI 回答都可以展示对应 Retrieval Sources。
 
-如果直接等待：
-
-```python
-ws.run_forever()
-```
-
-执行完成以后再返回 HTTP Response，则浏览器依然只能一次性获得完整结果。
-
-因此后端采用生产者 / 消费者模式：
+来源卡片包括：
 
 ```text
-WebSocket Thread
-       ↓
-    Producer
-       ↓
-      Queue
-       ↓
-    Consumer
-       ↓
-    Generator
-       ↓
-StreamingResponse
+Source ID
+File Name
+Page / Chunk
+Similarity
+Original Chunk Text
 ```
 
-WebSocket 回调：
+PDF 可以展示真实页码。
 
-```python
-message_queue.put(content)
-```
+TXT / Markdown / DOCX 等不存在稳定页码的文档不会伪造页码，而是使用 Chunk 信息定位。
 
-不断向 Queue 写入模型生成片段。
-
-Generator：
-
-```python
-item = message_queue.get()
-yield item
-```
-
-持续消费数据。
-
-同时将阻塞的：
-
-```python
-ws.run_forever()
-```
-
-放入后台线程中执行，从而使 HTTP Streaming 可以与 WebSocket 接收同时进行。
-
----
-
-## 🖥️ Vue 前端增量渲染
-
-用户发送问题以后，前端首先创建一条空的 AI Message：
-
-```javascript
-{
-  type: 'ai',
-  content: ''
-}
-```
-
-随后通过：
-
-```javascript
-const reader = response.body.getReader();
-```
-
-持续消费 HTTP Stream：
-
-```javascript
-const { done, value } = await reader.read();
-```
-
-二进制数据通过：
-
-```javascript
-const decoder = new TextDecoder('utf-8');
-```
-
-转换为字符串。
-
-每次收到新的 chunk 后：
-
-```javascript
-fullText += chunk;
-```
-
-随后更新当前 AI Message：
-
-```javascript
-this.conversation[aiMessageIndex].content = fullText;
-```
-
-Vue 响应式系统检测到状态变化后自动重新渲染页面，从而实现 AI 回答逐步生成。
+来源信息来自 Retrieval Pipeline 保存的原始 Metadata，而不是在生成结束以后重新猜测来源。
 
 ---
 
 ## 📝 Markdown 安全渲染
 
-AI 回答支持 Markdown 内容展示。
+AI 回答支持 Markdown：
+
+- 标题
+- 列表
+- 加粗
+- 引用
+- 代码
+- 普通段落
 
 前端使用：
 
 ```text
 marked
-+
-DOMPurify
-```
-
-处理 AI 返回内容。
-
-流程：
-
-```text
-AI Markdown
-    ↓
-marked
-    ↓
+   ↓
 HTML
-    ↓
+   ↓
 DOMPurify
-    ↓
-安全 HTML
-    ↓
+   ↓
+Safe HTML
+   ↓
 Vue Render
 ```
 
-在支持：
-
-- 标题
-- 列表
-- 代码
-- 引用
-- Markdown 格式
-
-的同时，对生成 HTML 进行清理，降低直接渲染模型内容带来的 XSS 风险。
+在保证回答可读性的同时，对模型生成 HTML 进行清理，降低直接 `v-html` 渲染所带来的 XSS 风险。
 
 ---
 
-## 📋 AI 回答复制
+## 📋 回答复制
 
-每条 AI Message 提供独立复制操作。
+每条 AI Message 支持一键复制。
 
 通过：
 
@@ -705,219 +619,200 @@ Vue Render
 navigator.clipboard.writeText(...)
 ```
 
-将回答写入系统剪贴板。
+写入系统剪贴板。
 
-复制成功后页面提供短暂反馈状态：
+复制完成后提供短暂状态反馈：
 
 ```text
 复制
-→
-已复制
+ ↓
+√ 已复制
 ```
-
-避免用户需要手动选择长文本。
 
 ---
 
 ## ⌨️ 输入交互
 
-问题输入框支持常见 AI 对话应用的键盘行为：
+问题输入框支持：
 
 ```text
 Enter
-→
-发送问题
+→ 发送问题
 
 Shift + Enter
-→
-换行
+→ 换行
 ```
 
-避免用户输入多行问题时被 Enter 错误触发发送。
+同时在模型正在生成时禁止重复提交。
 
 ---
 
-## 🗂️ 历史文档管理
+## 🗑️ 文档删除
 
-前端使用 LocalStorage 保存已上传文档记录。
+删除文档时不是单纯删除前端记录。
 
-保存内容包括：
+完整流程：
 
 ```text
-Document ID
-File Name
-Upload Time
+Frontend Delete
+      ↓
+DELETE /api/rag/documents/{document_id}
+      ↓
+FastAPI
+      ↓
+ChromaDB
+      ↓
+Delete all chunks
+      ↓
+Frontend refreshDocuments()
 ```
 
-用户可以：
+因此被删除文档：
 
-- 查看历史文档
-- 切换当前文档
-- 删除文档记录
-- 基于指定文档继续问答
-
-当前文档状态由父级页面统一维护，并通过 Props 向问答组件传递。
-
-避免父子组件同时维护不同的 Document ID 状态造成数据不同步。
+- 不再显示在左侧文档列表；
+- 不再参与全部文档检索；
+- 不会继续作为 Source 被召回。
 
 ---
 
-## 🎨 AI Workspace 界面
+## 🔄 ChromaDB 作为文档 Source of Truth
 
-当前页面采用知识库 / AI Workspace 风格布局：
+早期版本使用 LocalStorage 保存已上传文档历史。
+
+随着项目加入：
+
+- 多文档 Retrieval
+- 文档删除
+- ChromaDB 持久化
+
+仅靠客户端 LocalStorage 可能出现：
+
+```text
+Frontend Document List
+        ≠
+ChromaDB Real Documents
+```
+
+例如：
+
+```text
+前端已经删除文档
+但 ChromaDB 中仍存在旧向量
+```
+
+最终版本调整为：
+
+```text
+ChromaDB
+   ↓
+GET /api/rag/documents
+   ↓
+FastAPI
+   ↓
+Vue Workspace
+```
+
+ChromaDB 成为文档状态的 Source of Truth。
+
+前端启动、上传或删除文档后，都会通过后端重新同步真实文档列表。
+
+LocalStorage 仅保留：
+
+```text
+lastRagDocumentId
+```
+
+用于记录用户最后一次选中的文档，不再保存知识库真实文档集合。
+
+---
+
+## 🎨 AI Workspace
+
+前端使用知识库 / AI Workspace 风格布局：
 
 ```text
 ┌─────────────────────────────────────────────┐
-│                 Top Navigation              │
+│                Top Navigation               │
 ├──────────────┬──────────────────────────────┤
+│              │ 当前文档 / 全部文档         │
+│  Documents   ├──────────────────────────────┤
 │              │                              │
-│  Documents   │        Current Document      │
-│              │                              │
-│  History     │        Conversation          │
-│              │                              │
-│  Upload      │                              │
-│              │                              │
+│  Upload      │        Conversation          │
+│              │      only this scrolls       │
+│  Delete      │                              │
+│              ├──────────────────────────────┤
 │              │        Question Input        │
 └──────────────┴──────────────────────────────┘
 ```
 
-左侧主要用于：
+在问答工作台中：
 
-```text
-文档管理
-文档切换
-上传
-```
-
-右侧主要用于：
-
-```text
-当前文档状态
-对话历史
-AI 回答
-问题输入
-```
+- Navbar 固定；
+- 左侧文档栏固定；
+- Retrieval Scope 固定；
+- 输入框固定在底部；
+- 只有 Conversation History 内部滚动。
 
 ---
 
-## 🛠️ 技术栈
-
-| 层级 | 技术 |
-| --- | --- |
-| Frontend | Vue 3、Vite、JavaScript、Fetch API、ReadableStream、TextDecoder、CSS3 |
-| UI State | Vue Reactive State、Props / Emit、LocalStorage |
-| Markdown | marked、DOMPurify |
-| Backend | Python、FastAPI、Uvicorn、StreamingResponse |
-| Document Parser | pypdf、python-docx |
-| Chunking | Custom Overlapping Chunker |
-| Embedding | FastEmbed、ONNX Runtime、Multilingual MiniLM |
-| Vector Database | ChromaDB |
-| Retrieval | Dense Retrieval、Top-K、Cosine Similarity、Similarity Threshold |
-| RAG | Custom Parser / Chunker / Embedding / Retriever / Context Builder |
-| Concurrency | Queue、Threading、Generator |
-| Network | HTTP、Streaming HTTP、WebSocket |
-| Legacy AI Service | 讯飞文档问答服务 |
-| Engineering | Git、GitHub、`.env`、Swagger、Conda |
-
----
-
-## 🏗️ 当前系统架构
-
-### 自建 Retrieval Pipeline
+# 🏗️ 系统架构
 
 ```mermaid
-flowchart LR
-    A[Document] --> B[Document Parser]
-    B --> C[Sections]
-    C --> D[Overlapping Chunker]
-    D --> E[Document Chunks]
-
-    E --> F[Embedding Service]
-    F --> G[384-d Vectors]
-
-    G --> H[(ChromaDB)]
-    E --> H
-
-    I[User Question] --> J[Query Embedding]
-    J --> H
-
-    H --> K[Top-K Retrieval]
-    K --> L[Similarity Threshold]
-    L --> M[Relevant Chunks]
-    M --> N[Context Builder]
-    N --> O[Context + Sources]
-```
-
----
-
-### 当前完整应用链路
-
-```mermaid
-flowchart LR
+flowchart TD
     A[User] --> B[Vue 3 Frontend]
 
-    B --> C[Document Workspace]
-    B --> D[Question Input]
+    B --> C[Document Upload]
+    C --> D[FastAPI]
 
-    C <--> E[(LocalStorage)]
+    D --> E[Document Parser]
+    E --> F[Sections]
+    F --> G[Overlapping Chunker]
+    G --> H[Chunks]
 
-    D --> F[FastAPI]
+    H --> I[FastEmbed]
+    I --> J[384-d Embeddings]
 
-    F --> G[Streaming QA Service]
-    G --> H[Queue + Generator]
-    H --> I[StreamingResponse]
+    H --> K[(ChromaDB)]
+    J --> K
 
-    I --> B
+    B --> L[Question]
+    L --> M[FastAPI RAG API]
 
-    F --> J[Self-built RAG Modules]
+    M --> N[Query Embedding]
+    N --> K
 
-    J --> K[Parser]
-    K --> L[Chunker]
-    L --> M[Embedding]
-    M --> N[(ChromaDB)]
-    N --> O[Retriever]
-    O --> P[Context Builder]
+    K --> O[Top-K Retrieval]
+    O --> P[Similarity Threshold]
+    P --> Q[Relevant Chunks]
+
+    Q --> R[Context Builder]
+    R --> S[Context + Sources]
+
+    S --> T[LLM]
+    T --> U[NDJSON Streaming]
+
+    U --> V[ReadableStream]
+    V --> W[Vue Incremental Rendering]
+
+    S --> X[Source Cards]
+    X --> W
 ```
-
-目前：
-
-```text
-Self-built Retrieval
-```
-
-已经完成。
-
-下一阶段将：
-
-```text
-Context Builder
-    ↓
-Generic LLM
-    ↓
-Streaming Response
-    ↓
-Source Citation
-```
-
-接入现有前端问答链路。
 
 ---
 
-## 🔄 自建 RAG Retrieval 流程
+# 🔄 完整 RAG Workflow
 
-### 1. Document Parsing
+## 1. Document Parsing
 
 ```text
 PDF / DOCX / TXT / MD
         ↓
 Document Parser
         ↓
-Unified Document Structure
+Unified Document
 ```
 
----
-
-### 2. Chunking
+## 2. Chunking
 
 ```text
 Document Sections
@@ -929,57 +824,47 @@ Document Sections
 Chunks + Metadata
 ```
 
----
-
-### 3. Embedding
+## 3. Embedding
 
 ```text
 Chunk
-    ↓
+  ↓
 FastEmbed
-    ↓
+  ↓
 Multilingual MiniLM
-    ↓
+  ↓
 384-d Vector
 ```
 
----
-
-### 4. Vector Storage
+## 4. Vector Storage
 
 ```text
 Vector
 +
-Chunk Text
+Original Text
 +
 Metadata
-    ↓
+      ↓
 ChromaDB
-    ↓
-Persistent Storage
 ```
 
----
-
-### 5. Query Retrieval
+## 5. Query Retrieval
 
 ```text
 Question
-    ↓
+   ↓
 Query Embedding
-    ↓
+   ↓
 ChromaDB Query
-    ↓
+   ↓
 Top-K
-    ↓
+   ↓
 Similarity Threshold
-    ↓
+   ↓
 Relevant Chunks
 ```
 
----
-
-### 6. Context Construction
+## 6. Context Construction
 
 ```text
 Relevant Chunks
@@ -993,35 +878,84 @@ Context Builder
 内容：...
 
 [资料 2]
-文件：xxx.pdf
-位置：第 8 页
+文件：xxx.txt
+位置：片段 3
 内容：...
+```
 
-       +
+## 7. Generation
 
-Structured Sources
+```text
+Context
++
+Question
+   ↓
+RAG Prompt
+   ↓
+LLM
+```
+
+## 8. Streaming
+
+```text
+LLM Delta
+    ↓
+FastAPI
+    ↓
+NDJSON
+    ↓
+ReadableStream
+    ↓
+Vue
 ```
 
 ---
 
-## 📁 项目结构
+# 🛠️ 技术栈
+
+| 层级 | 技术 |
+| --- | --- |
+| Frontend | Vue 3、Vite、JavaScript、CSS3 |
+| Network | Fetch API、ReadableStream、TextDecoder |
+| Markdown | marked、DOMPurify |
+| Backend | Python、FastAPI、Uvicorn |
+| Document Parser | pypdf、python-docx |
+| Chunking | Custom Overlapping Chunker |
+| Embedding | FastEmbed、ONNX Runtime |
+| Embedding Model | paraphrase-multilingual-MiniLM-L12-v2 |
+| Vector Database | ChromaDB |
+| Retrieval | Dense Retrieval、Top-K、Cosine Similarity |
+| Retrieval Guard | Similarity Threshold |
+| RAG | Parser、Chunker、Embedding、Retriever、Context Builder |
+| Generation | Remote LLM API |
+| Streaming | NDJSON、StreamingResponse |
+| State | Vue Reactive State、Props / Emit |
+| Local State | LocalStorage，仅保存最近选中文档 |
+| Engineering | Git、GitHub、Conda、`.env`、Swagger |
+
+---
+
+# 📁 项目结构
 
 ```text
 RAGanswer/
 │
 ├── hellorag/                         # Vue 3 Frontend
-│   ├── public/
 │   │
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── DocumentQA.vue       # 文档问答、流式输出、复制
+│   │   │   ├── DocumentQA.vue       # 问答 / Streaming / Sources
 │   │   │   └── FileUpload.vue       # 文档上传
 │   │   │
 │   │   ├── services/
-│   │   │   └── apiService.js        # HTTP / Streaming API
+│   │   │   └── apiService.js        # HTTP / NDJSON Streaming
+│   │   │
+│   │   ├── styles/
+│   │   │   ├── main.css             # Workspace 页面样式
+│   │   │   └── document-qa.css      # QA 区域样式
 │   │   │
 │   │   ├── views/
-│   │   │   └── MainPage.vue         # 文档 Workspace / 状态管理
+│   │   │   └── MainPage.vue         # Workspace / 文档状态
 │   │   │
 │   │   ├── App.vue
 │   │   └── main.js
@@ -1033,21 +967,22 @@ RAGanswer/
 │   │
 │   ├── rag/
 │   │   ├── __init__.py
-│   │   ├── document_parser.py       # PDF / DOCX / TXT / MD 解析
-│   │   ├── chunker.py               # Overlapping Chunking
-│   │   ├── embeddings.py            # FastEmbed 多语言向量化
-│   │   ├── vector_store.py          # ChromaDB 持久化
-│   │   ├── retriever.py             # Top-K + Threshold Retrieval
-│   │   └── context_builder.py       # Context / Sources 构建
+│   │   ├── document_parser.py       # 多格式解析
+│   │   ├── chunker.py               # Overlap Chunking
+│   │   ├── embeddings.py            # FastEmbed
+│   │   ├── vector_store.py          # ChromaDB
+│   │   ├── retriever.py             # Top-K + Threshold
+│   │   ├── context_builder.py       # Context / Sources
+│   │   ├── ingestion_service.py     # 文档索引流程
+│   │   ├── llm_service.py           # LLM Generation
+│   │   └── rag_service.py           # RAG Orchestration
 │   │
 │   ├── data/
-│   │   └── chroma/                  # 本地 Vector Database，不提交 Git
+│   │   └── chroma/                  # Local Vector DB
 │   │
 │   ├── .env.example
 │   ├── .gitignore
-│   ├── Document_upload.py           # 原文档上传能力
-│   ├── Document_Q_And_A.py          # 原问答服务封装
-│   ├── main.py                      # FastAPI / StreamingResponse
+│   ├── main.py                      # FastAPI Entry
 │   └── requirements.txt
 │
 └── README.md
@@ -1055,37 +990,145 @@ RAGanswer/
 
 ---
 
-## 🔒 Git Ignore
+# 🔌 API
 
-以下本地文件不会提交到 Git 仓库：
+## GET `/health`
 
-```text
-node_modules/
-dist/
-.env
-__pycache__/
-.idea/
-.vscode/
-data/chroma/
+检查 FastAPI 服务状态。
+
+```json
+{
+  "status": "healthy"
+}
 ```
-
-其中：
-
-- `node_modules/`：前端依赖
-- `dist/`：前端构建产物
-- `.env`：本地 API 密钥
-- `__pycache__/`：Python 缓存
-- `.idea/`：JetBrains IDE 配置
-- `.vscode/`：VS Code 配置
-- `data/chroma/`：本地 Chroma Vector Database
-
-Embedding 模型文件同样使用本地缓存，不提交到 GitHub。
 
 ---
 
-## ▶️ 如何运行项目
+## GET `/api/rag/documents`
 
-### 1. 克隆项目
+获取当前 ChromaDB 中真实存在的已索引文档。
+
+返回示例：
+
+```json
+{
+  "status": "success",
+  "count": 2,
+  "documents": [
+    {
+      "document_id": "abc123",
+      "file_name": "frontend.txt",
+      "file_type": "txt",
+      "uploaded_at": "2026-09-12T07:48:00+00:00",
+      "chunk_count": 1
+    }
+  ]
+}
+```
+
+---
+
+## POST `/api/rag/documents`
+
+上传并索引文档。
+
+处理流程：
+
+```text
+UploadFile
+   ↓
+Temporary File
+   ↓
+Document Parser
+   ↓
+Chunker
+   ↓
+Embedding
+   ↓
+ChromaDB
+```
+
+返回：
+
+```json
+{
+  "status": "success",
+  "document_id": "abc123",
+  "file_name": "example.pdf",
+  "file_type": "pdf",
+  "chunk_count": 24,
+  "embedding_dimension": 384
+}
+```
+
+---
+
+## DELETE `/api/rag/documents/{document_id}`
+
+删除指定文档在 ChromaDB 中的全部 Chunk。
+
+---
+
+## POST `/api/rag/qa`
+
+完整响应模式 RAG 问答。
+
+请求：
+
+```json
+{
+  "document_id": "abc123",
+  "question": "这份文档主要介绍了什么？",
+  "top_k": 4,
+  "similarity_threshold": 0.05
+}
+```
+
+全部文档模式可将：
+
+```json
+{
+  "document_id": null
+}
+```
+
+发送给后端。
+
+返回：
+
+```json
+{
+  "status": "success",
+  "answer": "...",
+  "sources": [],
+  "retrieval_count": 4
+}
+```
+
+---
+
+## POST `/api/rag/qa-stream`
+
+流式 RAG 问答。
+
+Request Body 与 `/api/rag/qa` 类似。
+
+Response 使用 NDJSON：
+
+```text
+{"type":"sources","data":[...]}
+{"type":"answer","delta":"根据"}
+{"type":"answer","delta":"参考资料"}
+{"type":"done"}
+```
+
+当前 Vue 前端主要使用该接口。
+
+---
+
+# ▶️ 本地运行
+
+## 1. Clone
 
 ```bash
 git clone https://github.com/luojingjing0920/RAGanswer.git
@@ -1094,16 +1137,16 @@ cd RAGanswer
 
 ---
 
-### 2. 创建 Python 环境
+## 2. 创建后端环境
 
-推荐使用 Python 3.11 独立环境运行后端：
+推荐 Python 3.11。
 
 ```bash
 conda create -n rag311 python=3.11 -y
 conda activate rag311
 ```
 
-确认：
+检查：
 
 ```bash
 python --version
@@ -1111,14 +1154,14 @@ python --version
 
 ---
 
-### 3. 安装后端依赖
+## 3. 安装后端依赖
 
 ```bash
 cd rag-server
 python -m pip install -r requirements.txt
 ```
 
-主要依赖包括：
+核心依赖包括：
 
 ```text
 FastAPI
@@ -1129,66 +1172,62 @@ FastEmbed
 ONNX Runtime
 ChromaDB
 python-dotenv
+requests
 ```
 
 ---
 
-### 4. 配置环境变量
+## 4. 配置环境变量
 
-根据：
+在：
 
 ```text
-.env.example
+rag-server/
 ```
 
-创建：
+下创建：
 
 ```text
 .env
 ```
 
-当前旧版问答链路仍需要配置：
+示例：
 
 ```env
-XFYUN_APP_ID=your_app_id
-XFYUN_API_SECRET=your_api_secret
+DEEPSEEK_API_KEY=your_api_key
+
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+
+DEEPSEEK_MODEL=your_model_name
 ```
 
-真实 `.env` 已通过 `.gitignore` 排除。
-
-不要将真实 API Secret 提交至 GitHub。
+真实 `.env` 不应提交 GitHub。
 
 ---
 
-### 5. 启动 FastAPI
+## 5. 启动 FastAPI
 
 ```bash
-python main.py
+python -m uvicorn main:app --reload --port 8001
 ```
 
-或：
-
-```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-默认地址：
+Backend：
 
 ```text
-http://127.0.0.1:8000
+http://127.0.0.1:8001
 ```
 
 Swagger：
 
 ```text
-http://127.0.0.1:8000/docs
+http://127.0.0.1:8001/docs
 ```
 
 ---
 
-### 6. 启动前端
+## 6. 安装并启动前端
 
-新建终端：
+新终端：
 
 ```bash
 cd hellorag
@@ -1196,98 +1235,61 @@ npm install
 npm run dev
 ```
 
-通常访问：
+默认：
 
 ```text
 http://localhost:5173
 ```
 
----
+如果需要修改后端地址，可通过前端环境变量：
 
-## 🔌 当前 API
-
-### GET `/health`
-
-FastAPI 健康检查。
-
-返回：
-
-```json
-{
-  "status": "healthy"
-}
+```env
+VITE_API_BASE_URL=http://127.0.0.1:8001
 ```
+
+配置。
 
 ---
 
-### POST `/api/upload-document`
+# 🔒 Git Ignore
 
-当前前端文档上传接口。
-
-现阶段仍保留原有上传业务链路。
-
----
-
-### POST `/api/qa-document`
-
-完整响应模式的文档问答接口。
-
-请求：
-
-```json
-{
-  "file_id": "your_file_id",
-  "question": "请总结这份文档的主要内容"
-}
-```
-
-返回：
-
-```json
-{
-  "answer": "..."
-}
-```
-
----
-
-### POST `/api/qa-document-stream`
-
-当前前端主要使用的流式问答接口。
-
-请求：
-
-```json
-{
-  "file_id": "your_file_id",
-  "question": "请总结这份文档的主要内容"
-}
-```
-
-响应：
+以下内容不应提交：
 
 ```text
-text/plain; charset=utf-8
+node_modules/
+dist/
+
+.env
+
+__pycache__/
+*.pyc
+
+.idea/
+.vscode/
+
+data/chroma/
+
+request.json
 ```
 
-后端通过：
+其中：
 
-```text
-StreamingResponse
-```
-
-持续返回模型生成内容。
+- `.env`：真实 API Key；
+- `data/chroma/`：本地向量数据库；
+- `node_modules/`：前端依赖；
+- `__pycache__/`：Python 缓存；
+- IDE 配置与本地测试数据不进入仓库。
 
 ---
 
-## 💡 核心实现要点
+# 💡 核心设计
 
-### 1. Parser / Chunker / Embedding / Retrieval 分层
+## 1. RAG 模块分层
 
-RAG 模块没有将所有逻辑堆积在一个函数中，而是拆分为：
+后端没有将整个 RAG Pipeline 堆积在一个函数中。
 
 ```text
-DocumentParser
+Document Parser
       ↓
 Chunker
       ↓
@@ -1298,32 +1300,21 @@ VectorStore
 Retriever
       ↓
 ContextBuilder
+      ↓
+LLMService
+      ↓
+RAGService
 ```
 
-不同模块职责相互独立。
+不同模块职责独立。
 
-例如 Embedding Model 发生变化时：
-
-```text
-EmbeddingService
-```
-
-可以替换，而：
-
-```text
-Parser
-Chunker
-Retriever
-ContextBuilder
-```
-
-不需要同步重写。
+例如更换 Embedding Model 时，不需要重新实现 Parser 和 Chunker。
 
 ---
 
-### 2. 文档 Metadata 全链路保留
+## 2. Metadata 全链路保留
 
-文档在 Parser 阶段即保存：
+Parser 阶段保存：
 
 ```text
 file_name
@@ -1331,7 +1322,7 @@ file_type
 page
 ```
 
-Chunker 阶段继续增加：
+Chunker 增加：
 
 ```text
 chunk_index
@@ -1340,321 +1331,256 @@ start_char
 end_char
 ```
 
-Vector Store 保存这些 Metadata。
+Vector Store 将 Metadata 与 Chunk Vector 一起保存。
 
-因此后续从检索结果可以直接获得：
+因此 Retrieval Result 可以直接获得：
 
 ```text
 来源文件
 页码
 Chunk
 相似度
+原始文本
 ```
 
-而不需要在生成答案之后重新猜测来源。
+实现可追溯回答。
 
 ---
 
-### 3. Top-K 与 Threshold 分离
+## 3. Top-K 与 Threshold 分离
 
-Retriever 并不是简单返回 Vector Database 的 Top-K。
-
-完整流程：
+完整 Retrieval：
 
 ```text
 Vector Top-K
-    ↓
+      ↓
 Similarity Threshold
-    ↓
-Final Retrieval Results
+      ↓
+Final Results
 ```
 
-Top-K 负责：
+Top-K 与 Threshold 并不是同一个概念。
+
+Top-K：
 
 ```text
-找到相对最接近的内容
+找到相对最近的内容
 ```
 
-Threshold 负责：
+Threshold：
 
 ```text
-判断内容是否足够相关
+判断这些内容是否足够相关
 ```
 
-两者承担不同职责。
+这样可以避免“虽然不相关，但仍然是数据库中最接近的几个 Chunk”直接进入 LLM。
 
 ---
 
-### 4. Local Embedding + Remote Generation
+## 4. Local Retrieval + Remote Generation
 
-当前项目整体目标采用：
+项目采用：
 
 ```text
 Local:
-Parser
-Chunker
+Document Parsing
+Chunking
 Embedding
 Vector Store
-Retriever
-Citation Metadata
+Retrieval
+Source Metadata
 
 Remote:
 Large Language Model Generation
 ```
 
-避免在普通开发设备本地部署大型生成模型，同时将 RAG 最核心的 Retrieval 能力掌握在自己的服务中。
+这样不需要在普通开发设备上部署大型生成模型，同时仍然能够自主控制 RAG 中最关键的 Retrieval Pipeline。
 
 ---
 
-### 5. Producer / Consumer Streaming
+## 5. Source of Truth
 
-旧问答链路中，WebSocket 回调与 HTTP Response 通过 Queue 解耦：
+文档真实状态以：
 
 ```text
-Producer
-    ↓
-Queue
-    ↓
-Consumer
+ChromaDB
 ```
 
-使第三方 WebSocket 的分段数据可以持续转换为 HTTP Stream。
+为准。
 
----
-
-### 6. ReadableStream
-
-浏览器没有使用：
-
-```javascript
-await response.json()
-```
-
-等待完整结果。
-
-而是直接读取：
-
-```javascript
-response.body
-```
-
-并通过：
+而不是：
 
 ```text
-getReader()
-↓
-reader.read()
-↓
-TextDecoder
-↓
-Vue State
+LocalStorage
 ```
 
-持续更新 AI Message。
+前端通过：
+
+```text
+GET /api/rag/documents
+```
+
+同步知识库文档。
+
+LocalStorage 只记录 UI Preference：
+
+```text
+lastRagDocumentId
+```
+
+避免客户端缓存与向量数据库产生状态漂移。
 
 ---
 
-### 7. Single Source of Truth
+## 6. Structured Streaming
 
-当前文档状态主要由父级 Workspace 管理。
+流式响应不是直接返回不可区分的纯文本。
 
-子级问答组件通过 Props 接收当前 Document ID，而不是父子组件各自维护一份文档状态。
+而是使用带事件类型的 NDJSON：
+
+```text
+sources
+answer
+done
+```
+
+因此前端可以分别处理：
+
+```text
+Retrieval Sources
+LLM Delta
+Stream Completion
+```
+
+为来源卡片、流式回答以及后续更多事件类型保留扩展空间。
+
+---
+
+## 7. 前端 Single Source of Truth
+
+当前 Document ID 和 Retrieval Scope 由上层 Workspace 管理。
+
+DocumentQA 通过 Props / `v-model` 获取状态。
 
 避免：
 
 ```text
-Parent documentId ≠ Child documentId
+Parent State
+≠
+Child State
 ```
 
-导致问答使用错误文档。
+导致 UI 显示一个文档，但实际 Query 使用另一个 `document_id`。
 
 ---
 
-### 8. Markdown + DOMPurify
+# 📊 已完成验证
 
-AI 回答先通过 Markdown Parser 转换，再经过 DOMPurify 清理：
+项目已经使用真实文档完成端到端测试。
 
-```text
-Model Output
-    ↓
-Markdown Parser
-    ↓
-DOMPurify
-    ↓
-Safe HTML
-```
+包括：
 
-兼顾回答可读性与前端内容安全。
+- PDF / DOCX / TXT / MD 上传；
+- Parser 文本提取；
+- Overlapping Chunking；
+- Embedding；
+- ChromaDB 持久化；
+- 当前文档 Retrieval；
+- 全部文档 Retrieval；
+- 跨文档回答；
+- Similarity Threshold 无关问题过滤；
+- RAG Generation；
+- NDJSON Streaming；
+- Source Citation；
+- 文档删除；
+- 删除后向量不可再次召回；
+- 页面刷新后文档状态同步；
+- 长对话区域独立滚动。
 
----
-
-### 9. 敏感配置管理
-
-API Secret 统一通过：
-
-```text
-.env
-↓
-python-dotenv
-↓
-os.getenv(...)
-```
-
-读取。
-
-真实密钥不直接写入 Python 源代码，也不提交 GitHub。
-
----
-
-## 📊 当前 RAG 验证结果
-
-当前使用一份真实 PDF 文档进行 Retrieval Pipeline 测试。
-
-文档解析结果：
+其中某次真实 PDF 测试：
 
 ```text
 Sections: 9
-```
-
-Chunking：
-
-```text
 Chunks: 24
-```
-
-Embedding：
-
-```text
 Vectors: 24
-Dimension: 384
+Embedding Dimension: 384
 ```
 
-对于问题：
+对于文档相关问题可以召回真实内容。
 
-```text
-实习期间主要完成了哪些工作？
-```
-
-Top-3 Retrieval 成功返回包含以下语义信息的相关片段：
-
-```text
-前端开发
-React
-Ant Design
-表单业务逻辑
-前后端接口联调
-项目维护
-业务理解
-需求沟通
-```
-
-对于无关问题：
-
-```text
-这份报告有没有介绍量子纠缠实验？
-```
-
-使用：
-
-```text
-similarity_threshold = 0.5
-```
-
-最终：
-
-```text
-result count: 0
-```
-
-验证了当前 Retriever 对明显低相关内容具有基础过滤能力。
+对于明显不存在于知识库中的问题，可以通过 Threshold + Grounded Prompt 返回“无法确定”，而不是直接依赖模型自身知识作答。
 
 ---
 
-## 🚧 当前开发阶段
+# 🔁 项目演进
 
-目前已经完成：
+这个项目并不是一次性搭建完成，而是经历了多次架构调整。
 
 ```text
-Document Parser
+V1
+第三方文档问答 API 原型
         ↓
+V2
+自建 Document Parser
++
 Overlapping Chunker
         ↓
-Multilingual Embedding
-        ↓
+V3
+FastEmbed
++
 ChromaDB
-        ↓
++
 Top-K Retrieval
         ↓
+V4
 Similarity Threshold
-        ↓
++
 Context Builder
++
+Source Metadata
+        ↓
+V5
+Generic LLM Generation
++
+Grounded Prompt
+        ↓
+V6
+NDJSON Streaming
++
+Vue Incremental Rendering
+        ↓
+V7
+Current / All Documents
++
+Cross-document Retrieval
+        ↓
+V8
+Document Delete
++
+ChromaDB Source of Truth
++
+Frontend State Synchronization
 ```
 
-现有前端同时已经具备：
+项目从：
 
 ```text
-Document Workspace
-Streaming Response
-Markdown Rendering
-Copy Answer
-Document History
-Current Document Switching
+“调用一个文档问答 API”
 ```
 
-下一阶段正在将两条能力链正式连接：
+逐步演进为：
 
 ```text
-Self-built Retriever
-        ↓
-Context
-        ↓
-Generic LLM
-        ↓
-Streaming Response
-        ↓
-Vue
-        ↓
-Source Citation
+“自主实现 Retrieval Pipeline，
+并完成前后端一体化 RAG 应用”
 ```
 
 ---
 
-## 🎯 项目设计目标
-
-本项目的目标并不是简单调用一个“文档问答 API”，而是在已有 AI 问答应用基础上逐步掌握并实现完整 RAG Workflow：
-
-```text
-Document Processing
-        +
-Chunk Strategy
-        +
-Embedding
-        +
-Vector Database
-        +
-Semantic Retrieval
-        +
-Context Construction
-        +
-LLM Generation
-        +
-Streaming
-        +
-Source Citation
-        +
-Frontend AI Workspace
-```
-
-通过将 Parser、Embedding、Retrieval、Generation 和 Frontend Streaming 分层设计，使项目既能够作为完整的 AI 文档问答应用运行，也能够对每个 RAG 核心模块进行独立理解、调试和替换。
-
----
-
-## 📌 当前项目特点
+# 🎯 项目亮点
 
 ```text
 Vue 3 AI Workspace
-        +
-FastAPI Backend
         +
 Custom Document Parser
         +
@@ -1662,39 +1588,74 @@ Custom Overlapping Chunker
         +
 Local Multilingual Embedding
         +
-ChromaDB
+ChromaDB Persistent Vector Store
         +
 Top-K Semantic Retrieval
         +
 Similarity Threshold
         +
-Context / Source Builder
+Multi-document Retrieval
         +
-HTTP Streaming
+Grounded LLM Generation
+        +
+NDJSON Streaming
         +
 ReadableStream
         +
+Traceable Sources
+        +
 Markdown Safe Rendering
         +
-Git / GitHub
+ChromaDB Source of Truth
 ```
 
-项目目前已经从：
+项目重点不只是“调用 AI”，而是完整实现和串联：
 
 ```text
-第三方文档问答 API 接入
+Document Processing
++
+Chunk Strategy
++
+Embedding
++
+Vector Database
++
+Semantic Retrieval
++
+Context Construction
++
+Generation
++
+Streaming
++
+Source Citation
++
+Frontend Workspace
 ```
 
-逐步升级为：
+---
 
-```text
-自主控制 Retrieval Pipeline 的 RAG 文档问答系统
-```
+## 📌 后续可扩展方向
 
-后续继续完成 Generation 与 Retrieval 的整合，并在前端增加可追溯 Source Citation。
+当前版本已经完成核心 RAG Workflow。
+
+后续如果继续扩展，可以考虑：
+
+- Token-aware Chunking；
+- Hybrid Search；
+- Reranker；
+- Query Rewrite；
+- OCR；
+- Retrieval Evaluation Dataset；
+- 对话级 Query Context；
+- 文档预览与 Citation 跳转；
+- Docker 部署；
+- Redis / PostgreSQL 用户级知识库。
+
+这些功能不属于当前核心版本的必要依赖。
 
 ---
 
 ## License
 
-本项目用于个人学习、技术实践与 RAG 应用开发研究。
+本项目用于个人学习、工程实践与 RAG 应用开发研究。
