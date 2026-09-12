@@ -1,5 +1,5 @@
 <template>
-  <div class="main-container">
+  <div class="main-container" :class="{'qa-page': currentStep === 'qa'}">
     <!-- 顶部导航栏 -->
     <header class="navbar">
       <div class="navbar-container">
@@ -15,7 +15,8 @@
     <!-- 主要内容区域 -->
     <main class="content" :class="{
       'init-mode': currentStep === 'init',
-      'upload-mode': currentStep === 'upload'
+      'upload-mode': currentStep === 'upload',
+      'qa-mode': currentStep === 'qa'
     }">
     <!-- 侧边栏 -->
       <aside class="sidebar">
@@ -32,11 +33,18 @@
             + 上传
           </button>
           <div class="files-list">
-            <div 
-              v-for="file in uploadedFiles" 
+            <div
+              v-for="file in uploadedFiles"
               :key="file.id"
               class="file-item"
-              :class="{ active: file.id === uploadedFileId }"
+              :class="{
+                active:
+                retrievalScope === 'current' &&
+                file.id === uploadedFileId,
+
+              'in-scope':
+                retrievalScope === 'all',
+             }"
               @click="selectFile(file.id)"
             >
               <div class="file-info">
@@ -87,13 +95,16 @@
 
         <!-- 文档问答区域 -->
         <div v-if="currentStep === 'qa'" class="qa-section">
-          <DocumentQA :key="uploadedFileId" :initial-file-id="uploadedFileId" :file-name="currentFileName"/>
+          <DocumentQA 
+            :key="uploadedFileId" :initial-file-id="uploadedFileId" :file-name="currentFileName"
+            v-model:retrieval-scope="retrievalScope"
+          />
         </div>
       </div>
     </main>
 
     <!-- 底部信息 -->
-    <footer class="footer">
+    <footer  v-if="currentStep !== 'qa'" class="footer">
       <div class="footer-content">
         <p>© 2026 RAG智能文档问答系统 · Self-built Retrieval Pipeline</p>
       </div>
@@ -165,7 +176,8 @@ export default {
       uploadedFiles: [],
       showAbout: false,
       message: '',
-      messageType: 'info' // 'info', 'success', 'error', 'warning'
+      messageType: 'info', // 'info', 'success', 'error', 'warning'
+      retrievalScope: 'current'
     };
   },
 
@@ -205,6 +217,9 @@ export default {
     // 处理文件上传完成
     handleFileUploaded(fileId, fileName) {
       this.uploadedFileId = fileId;
+ 
+      // 新上传文档后，默认针对该文档问答
+      this.retrievalScope = 'current';
 
       // 保存文件 ID + 文件名
       this.addToHistory(fileId, fileName);
@@ -376,568 +391,5 @@ export default {
 };
 </script>
 
-<style scoped>
-.main-container {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: #f5f7fb;
-}
-
-/* 导航栏样式 */
-.navbar {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  padding: 15px 0;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.navbar-container {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 0 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.logo h1 {
-  margin: 0;
-  font-size: 28px;
-  color: #333;
-  font-weight: 600;
-}
-
-.about-btn {
-  padding: 10px 20px;
-  background: #409eff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 16px;
-  transition: all 0.3s ease;
-}
-
-.about-btn:hover {
-  background: #66b1ff;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
-}
-
-/* 主要内容样式 */
-.content {
-  flex: 1;
-  max-width: 1440px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 2rem;
-  display: flex;
-  flex-direction: row;
-  gap: 2rem;
-}
-
-/* 主内容区和侧边栏布局 */
-.main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-}
-
-.sidebar {
-  width: 270px;
-  flex-shrink: 0;
-}
-
-/* 在初始化或上传阶段使用单列布局 */
-.content.init-mode,
-.content.upload-mode {
-  flex-direction: column;
-}
-
-.content.init-mode .main-content,
-.content.upload-mode .main-content {
-  max-width: 800px;
-  margin: 0 auto;
-  width: 100%;
-}
-
-.content.init-mode .sidebar,
-.content.upload-mode .sidebar {
-  display: none;
-}
-
-/* 欢迎区域样式 */
-.welcome-section {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 400px;
-}
-
-.welcome-card {
-  background: white;
-  border-radius: 12px;
-  padding: 40px;
-  text-align: center;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-  max-width: 600px;
-  transform: translateY(-20px);
-  animation: slideUp 0.6s ease-out forwards;
-}
-
-@keyframes slideUp {
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.welcome-icon {
-  font-size: 64px;
-  margin-bottom: 20px;
-}
-
-.welcome-card h2 {
-  margin: 0 0 15px 0;
-  color: #333;
-  font-size: 28px;
-}
-
-.welcome-card p {
-  color: #666;
-  line-height: 1.6;
-  margin-bottom: 30px;
-  font-size: 16px;
-}
-
-.start-btn {
-  padding: 12px 36px;
-  background: linear-gradient(45deg, #667eea, #764ba2);
-  color: white;
-  border: none;
-  border-radius: 30px;
-  font-size: 18px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-}
-
-.start-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
-}
-
-/* 上传和问答区域样式 */
-.upload-section,
-.qa-section {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-  animation: fadeIn 0.5s ease-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* 文档列表样式 */
-.files-section {
-  background: white;
-  border-radius: 12px;
-  padding: 25px;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-  height: fit-content;
-  max-height: calc(100vh - 200px);
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-.sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 18px;
-}
-
-.sidebar-header h3 {
-  margin: 0;
-  padding: 0;
-  border: none;
-  font-size: 18px;
-  color: #303133;
-}
-
-.sidebar-header p {
-  margin-top: 3px;
-  font-size: 12px;
-  color: #909399;
-}
-
-.new-file-btn {
-  padding: 7px 12px;
-  border: none;
-  border-radius: 7px;
-  background: #409eff;
-  color: white;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.new-file-btn:hover {
-  background: #66b1ff;
-}
-
-/* 空状态样式 */
-.empty-state {
-  background: white;
-  border-radius: 12px;
-  padding: 40px 25px;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-  text-align: center;
-  color: #999;
-}
-
-.empty-icon {
-  font-size: 48px;
-  margin-bottom: 15px;
-  opacity: 0.5;
-}
-
-.empty-hint {
-  font-size: 14px;
-  color: #ccc;
-  margin-top: 5px;
-}
-
-.files-section h3 {
-  margin-top: 0;
-  color: #333;
-  border-bottom: 2px solid #f0f0f0;
-  padding-bottom: 10px;
-  margin-bottom: 20px;
-}
-
-.files-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.file-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  min-width: 0;
-}
-
-.file-item.active {
-  background: #eef4ff;
-  border-color: #409eff;
-  box-shadow: 0 0 0 1px rgba(64, 158, 255, 0.08);
-}
-
-
-.file-item:hover {
-  background: #f5f7fa;
-  border-color: #dcdfe6;
-  transform: none;
-}
-
-.file-info {
-  flex: 1;
-}
-
-.file-main {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-  flex: 1;
-}
-
-.file-icon {
-  flex-shrink: 0;
-  font-size: 18px;
-}
-
-.file-meta {
-  min-width: 0;
-  flex: 1;
-}
-
-.file-name {
-  display: block;
-  overflow: hidden;
-  margin-bottom: 3px;
-  color: #303133;
-  font-size: 13px;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.file-time {
-  font-size: 11px;
-  color: #a8abb2;
-}
-
-.file-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.use-btn,
-.remove-btn {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.3s;
-}
-
-.use-btn {
-  background: #409eff;
-  color: white;
-}
-
-.use-btn:hover {
-  background: #66b1ff;
-}
-
-.remove-btn {
-  width: 26px;
-  height: 26px;
-  padding: 0;
-
-  border: none;
-  border-radius: 6px;
-
-  background: transparent;
-  color: #909399;
-
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 26px;
-}
-
-.remove-btn:hover {
-  background: #fef0f0;
-  color: #f56c6c;
-}
-
-/* 底部样式 */
-.footer {
-  background: rgba(0, 0, 0, 0.1);
-  padding: 20px 0;
-  margin-top: auto;
-}
-
-.footer-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 14px;
-}
-
-/* 模态框样式 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  animation: fadeIn 0.3s ease-out;
-}
-
-.modal {
-  background: white;
-  border-radius: 8px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 80vh;
-  overflow-y: auto;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-  animation: slideIn 0.3s ease-out;
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-50px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 25px;
-  border-bottom: 1px solid #eee;
-}
-
-.modal-header h3 {
-  margin: 0;
-  color: #333;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: #999;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: all 0.3s;
-}
-
-.close-btn:hover {
-  background: #f0f0f0;
-  color: #333;
-}
-
-.modal-content {
-  padding: 25px;
-  line-height: 1.6;
-  color: #666;
-}
-
-.modal-content h4 {
-  margin-top: 20px;
-  margin-bottom: 10px;
-  color: #333;
-}
-
-.modal-content ul,
-.modal-content ol {
-  margin: 10px 0;
-  padding-left: 25px;
-}
-
-.modal-content li {
-  margin-bottom: 8px;
-}
-
-/* 消息提示样式 */
-.message-toast {
-  position: fixed;
-  top: 80px;
-  right: 20px;
-  padding: 12px 20px;
-  border-radius: 4px;
-  color: white;
-  font-weight: 500;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  animation: slideInRight 0.3s ease-out;
-  z-index: 1001;
-}
-
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.message-toast.info {
-  background: #409eff;
-}
-
-.message-toast.success {
-  background: #67c23a;
-}
-
-.message-toast.error {
-  background: #f56c6c;
-}
-
-.message-toast.warning {
-  background: #e6a23c;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .navbar-container {
-    padding: 0 15px;
-  }
-  
-  .logo h1 {
-    font-size: 20px;
-  }
-  
-  .content {
-  flex: 1;
-  max-width: 1500px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 24px;
-  display: flex;
-  flex-direction: row;
-  gap: 20px;
-}
-  
-  .welcome-card {
-    padding: 30px 20px;
-  }
-  
-  .welcome-card h2 {
-    font-size: 24px;
-  }
-  
-  .file-item {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-  
-  .file-actions {
-    justify-content: flex-end;
-  }
-  
-  .message-toast {
-    right: 10px;
-    left: 10px;
-    text-align: center;
-  }
-}
+<style scoped src="../styles/main.css">
 </style>
