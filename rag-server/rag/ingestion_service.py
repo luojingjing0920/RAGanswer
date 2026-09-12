@@ -1,3 +1,7 @@
+from datetime import (
+    datetime,
+    timezone,
+)
 from pathlib import Path
 from uuid import uuid4
 
@@ -71,6 +75,12 @@ class IngestionService:
             or uuid4().hex
         )
 
+        uploaded_at = (
+            datetime.now(
+                timezone.utc
+            ).isoformat()
+        )
+
         document = parse_document(
             file_path
         )
@@ -102,6 +112,7 @@ class IngestionService:
             document_id=document_id,
             chunks=chunks,
             embeddings=embeddings,
+            uploaded_at=uploaded_at,
         )
 
         return {
@@ -112,6 +123,7 @@ class IngestionService:
             "file_type": document[
                 "file_type"
             ],
+            "uploaded_at": uploaded_at,
             "chunk_count": len(chunks),
             "embedding_dimension": (
                 len(embeddings[0])

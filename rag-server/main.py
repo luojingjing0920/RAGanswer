@@ -114,6 +114,46 @@ async def health_check():
 # Document Ingestion
 # =========================
 
+@app.get(
+    "/api/rag/documents",
+    summary="获取 RAG 文档列表",
+    description=(
+        "获取当前 ChromaDB 中"
+        "已经索引的文档列表"
+    ),
+)
+async def list_rag_documents():
+    """
+    ChromaDB
+        ↓
+    Chunk Metadata
+        ↓
+    document_id 聚合
+        ↓
+    Document List
+    """
+
+    try:
+        vector_store = VectorStore()
+
+        documents = await asyncio.to_thread(
+            vector_store.list_documents
+        )
+
+        return {
+            "status": "success",
+            "count": len(documents),
+            "documents": documents,
+        }
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"获取文档列表失败：{exc}"
+            ),
+        ) from exc
+
 @app.post(
     "/api/rag/documents",
     summary="上传并索引 RAG 文档",

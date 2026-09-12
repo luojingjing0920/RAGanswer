@@ -52,6 +52,7 @@ class VectorStore:
         document_id: str,
         chunks: list[dict],
         embeddings: list[list[float]],
+        uploaded_at:str | None=None,
     ) -> None:
         """
         将文档 chunks 及其 embeddings 写入 Chroma。
@@ -109,6 +110,11 @@ class VectorStore:
                     "end_char"
                 ],
             }
+
+            if uploaded_at:
+                metadata["uploaded_at"] = (
+                    uploaded_at
+                )
 
             page = chunk.get("page")
 
@@ -203,6 +209,105 @@ class VectorStore:
             )
 
         return results
+
+    def list_documents(
+            self
+    ) -> list[dict]:
+        """
+        获取当前 ChromaDB 中
+        已经索引的真实文档列表。
+
+        Chunk 级 metadata
+        → 按 document_id 聚合
+        → Document 列表
+        """
+
+        result = self.collection.get(
+            include=[
+                "metadatas"
+            ]
+        )
+
+        metadatas = (
+                result.get("metadatas")
+                or []
+        )
+
+        documents = {}
+
+        for metadata in metadatas:
+            if not metadata:
+                continue
+
+            document_id = metadata.get(
+                "document_id"
+            )
+
+            if not document_id:
+                continue
+
+            if document_id not in documents:
+                documents[document_id] = {
+                    "document_id":
+                        document_id,
+
+                    "file_name":
+                        metadata.get(
+                            "file_name",
+                            "未知文档",
+                        ),
+
+                    "file_type":
+                        metadata.get(
+                            "file_type",
+                            "",
+                        ),
+
+                    "uploaded_at":
+                        metadata.get(
+                            "uploaded_at"
+                        ),
+
+                    "chunk_count": 0,
+                }
+
+            documents[
+                document_id
+            ]["chunk_count"] += 1
+
+            # 兼容旧文档：
+            # 如果第一块没有时间，
+            # 后面的 metadata 有时间，则补上。
+            if (
+                    not documents[
+                        document_id
+                    ]["uploaded_at"]
+                    and metadata.get(
+                "uploaded_at"
+            )
+            ):
+                documents[
+                    document_id
+                ]["uploaded_at"] = (
+                    metadata[
+                        "uploaded_at"
+                    ]
+                )
+
+        document_list = list(
+            documents.values()
+        )
+
+        document_list.sort(
+            key=lambda item:
+            item.get(
+                "uploaded_at"
+            )
+            or "",
+            reverse=True,
+        )
+
+        return document_list
 
     def delete_document(
         self,
