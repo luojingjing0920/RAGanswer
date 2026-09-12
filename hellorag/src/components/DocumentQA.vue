@@ -510,7 +510,14 @@ export default {
     // 清空对话
     clearConversation() {
       this.conversation = [];
-      this.addSystemMessage('对话已清空');
+
+      this.error = null;
+
+      this.isLoading = false;
+
+      this.hasReceivedChunk = false;
+
+      this.copiedMessageIndex = null;
     },
     
     // 格式化时间
