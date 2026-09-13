@@ -1,0 +1,26 @@
+services:
+  backend:
+    build:
+      context: ./rag-server
+    image: rag-backend:local
+    env_file:
+      - ./rag-server/.env
+    volumes:
+      - ./rag-server/data/chroma:/app/data/chroma
+      - rag-model-cache:/root/.cache
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./hellorag
+    image: rag-frontend:local
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  rag-model-cache:
+    external: true
+    name: rag-model-cache
