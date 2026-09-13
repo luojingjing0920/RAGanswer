@@ -1,0 +1,28 @@
+# Environment / secrets
+.env
+.env.*
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local vector database
+data/chroma/
+
+# IDE
+.idea/
+.vscode/
+
+# Test / temporary files
+request.json
+*.tmp
+
+# Git
+.git/
+.gitignore
