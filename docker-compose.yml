@@ -7,7 +7,7 @@ services:
       - ./rag-server/.env
     volumes:
       - ./rag-server/data/chroma:/app/data/chroma
-      - rag-model-cache:/root/.cache
+      - rag-model-cache:/tmp/fastembed_cache
     restart: unless-stopped
 
   frontend:
