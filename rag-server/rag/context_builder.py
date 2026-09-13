@@ -15,6 +15,10 @@ def build_context(
     ):
         metadata = item["metadata"]
 
+        document_id = metadata.get(
+            "document_id"
+        )
+
         file_name = metadata.get(
             "file_name",
             "未知文件"
@@ -44,6 +48,7 @@ def build_context(
         sources.append(
             {
                 "source_id": index,
+                "document_id": document_id,
                 "file_name": file_name,
                 "page": page,
                 "chunk_index": chunk_index,

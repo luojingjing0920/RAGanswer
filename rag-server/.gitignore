@@ -7,8 +7,9 @@ __pycache__/
 .venv/
 venv/
 
-# Vector database
+# RAG persistent data
 data/chroma/
+data/documents/
 
 # Virtual environments
 .venv/
@@ -24,5 +25,3 @@ Thumbs.db
 
 # Local test files
 request.json
-
-data/chroma/

@@ -7,8 +7,10 @@ from uuid import uuid4
 
 from rag.chunker import chunk_document
 from rag.document_parser import parse_document
+from rag.document_storage import DocumentStorage
 from rag.embeddings import EmbeddingService
 from rag.vector_store import VectorStore
+
 
 
 SUPPORTED_EXTENSIONS = {
@@ -39,6 +41,7 @@ class IngestionService:
         self,
         embedding_service: EmbeddingService | None = None,
         vector_store: VectorStore | None = None,
+        document_storage:DocumentStorage | None = None,
     ):
         self.embedding_service = (
             embedding_service
@@ -49,6 +52,13 @@ class IngestionService:
             vector_store
             or VectorStore()
         )
+
+        self.document_storage = (
+                document_storage
+                or DocumentStorage()
+        )
+
+
 
     def ingest(
         self,
@@ -108,12 +118,26 @@ class IngestionService:
             .embed_texts(texts)
         )
 
-        self.vector_store.upsert_chunks(
-            document_id=document_id,
-            chunks=chunks,
-            embeddings=embeddings,
-            uploaded_at=uploaded_at,
+        saved_file_path = (
+            self.document_storage.save(
+                document_id=document_id,
+                source_path=file_path,
+            )
         )
+
+        try:
+            self.vector_store.upsert_chunks(
+                document_id=document_id,
+                chunks=chunks,
+                embeddings=embeddings,
+                uploaded_at=uploaded_at,
+            )
+
+        except Exception:
+            self.document_storage.delete(
+                document_id
+            )
+            raise
 
         return {
             "document_id": document_id,

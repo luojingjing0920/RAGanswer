@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import mimetypes
 import tempfile
 from pathlib import Path
 
@@ -13,9 +14,13 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import (
+    FileResponse,
+    StreamingResponse,
+)
 from pydantic import BaseModel
 
+from rag.document_storage import DocumentStorage
 from rag.ingestion_service import IngestionService
 from rag.rag_service import RAGService
 from rag.vector_store import VectorStore
@@ -276,6 +281,79 @@ async def upload_rag_document(
                 missing_ok=True
             )
 
+@app.get(
+    "/api/rag/documents/{document_id}/file",
+    summary="获取 RAG 原始文档",
+    description=(
+        "根据 document_id 获取已经持久化的"
+        "原始上传文件。"
+    ),
+)
+async def get_rag_document_file(
+    document_id: str,
+):
+    """
+    原始文件读取流程：
+
+    document_id
+        ↓
+    DocumentStorage
+        ↓
+    Original File
+        ↓
+    FileResponse
+    """
+
+    document_id = document_id.strip()
+
+    if not document_id:
+        raise HTTPException(
+            status_code=400,
+            detail="document_id 不能为空",
+        )
+
+    try:
+        document_storage = DocumentStorage()
+
+        file_path = await asyncio.to_thread(
+            document_storage.get,
+            document_id,
+        )
+
+        media_type, _ = mimetypes.guess_type(
+            file_path.name
+        )
+
+        return FileResponse(
+            path=file_path,
+            media_type=(
+                media_type
+                or "application/octet-stream"
+            ),
+            filename=file_path.name,
+            content_disposition_type="inline",
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="原始文档不存在",
+        ) from exc
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"获取原始文档失败：{exc}"
+            ),
+        ) from exc
+
 
 # =========================
 # Document Deletion
@@ -308,9 +386,15 @@ async def delete_rag_document(
 
     try:
         vector_store = VectorStore()
+        document_storage = DocumentStorage()
 
         await asyncio.to_thread(
             vector_store.delete_document,
+            document_id,
+        )
+
+        await asyncio.to_thread(
+            document_storage.delete,
             document_id,
         )
 
