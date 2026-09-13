@@ -8,7 +8,7 @@ export default defineConfig({
     proxy: {
       // 代理配置，用于访问本地后端服务
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
         rewrite: (path) => path,
         configure: (proxy, options) => {
@@ -29,7 +29,7 @@ export default defineConfig({
       },
       // 健康检查接口代理
       '/health': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
         rewrite: (path) => path
       }
