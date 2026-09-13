@@ -13,6 +13,8 @@
 <img src="https://img.shields.io/badge/FastEmbed-Embedding-blue" />
 <img src="https://img.shields.io/badge/RAG-Self_Built_Retrieval-blueviolet" />
 <img src="https://img.shields.io/badge/Streaming-NDJSON-success" />
+<img src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white" />
+<img src="https://img.shields.io/badge/Nginx-Reverse_Proxy-009639?logo=nginx&logoColor=white" />
 
 </div>
 
@@ -931,6 +933,7 @@ Vue
 | Streaming | NDJSON、StreamingResponse |
 | State | Vue Reactive State、Props / Emit |
 | Local State | LocalStorage，仅保存最近选中文档 |
+| Deployment | Docker、Docker Compose、Nginx Reverse Proxy |
 | Engineering | Git、GitHub、Conda、`.env`、Swagger |
 
 ---
@@ -960,6 +963,9 @@ RAGanswer/
 │   │   ├── App.vue
 │   │   └── main.js
 │   │
+│   ├── Dockerfile                    # Frontend multi-stage build
+│   ├── .dockerignore
+│   ├── nginx.conf                    # Static hosting / API reverse proxy / streaming
 │   ├── package.json
 │   └── vite.config.js
 │
@@ -980,11 +986,14 @@ RAGanswer/
 │   ├── data/
 │   │   └── chroma/                  # Local Vector DB
 │   │
+│   ├── Dockerfile                   # FastAPI container image
+│   ├── .dockerignore
 │   ├── .env.example
 │   ├── .gitignore
 │   ├── main.py                      # FastAPI Entry
 │   └── requirements.txt
 │
+├── docker-compose.yml               # Frontend + Backend orchestration
 └── README.md
 ```
 
@@ -1195,9 +1204,7 @@ rag-server/
 
 ```env
 DEEPSEEK_API_KEY=your_api_key
-
 DEEPSEEK_BASE_URL=https://api.deepseek.com
-
 DEEPSEEK_MODEL=your_model_name
 ```
 
@@ -1241,13 +1248,736 @@ npm run dev
 http://localhost:5173
 ```
 
-如果需要修改后端地址，可通过前端环境变量：
+当前前端 API 默认使用相对路径：
+
+```text
+/api/...
+```
+
+开发环境由 Vite Proxy 转发到：
+
+```text
+http://127.0.0.1:8001
+```
+
+生产 / Docker 环境则由 Nginx 将 `/api` 反向代理到 Docker 网络中的：
+
+```text
+backend:8000
+```
+
+如确有需要，也可以通过：
 
 ```env
 VITE_API_BASE_URL=http://127.0.0.1:8001
 ```
 
-配置。
+显式覆盖 API Base URL。
+
+---
+
+# 🐳 Docker / Docker Compose 部署
+
+项目已经完成前后端容器化，并通过 Docker Compose 将 Vue、Nginx、FastAPI、ChromaDB 持久化目录与 FastEmbed 模型缓存统一编排。
+
+---
+
+## 1. 部署架构
+
+```text
+Browser
+   ↓
+http://127.0.0.1:8080
+   ↓
+Frontend Container
+Nginx :80
+   ↓
+/api Reverse Proxy
+   ↓
+backend:8000
+   ↓
+Backend Container
+FastAPI
+   ↓
+RAG Pipeline
+   ├── FastEmbed
+   ├── ChromaDB
+   └── Remote LLM API
+```
+
+Docker Compose 会为 Frontend 和 Backend 创建内部 Network。
+
+Frontend 不需要知道 Backend Container 的动态 IP，只需要通过 Compose Service Name：
+
+```text
+backend
+```
+
+访问：
+
+```text
+http://backend:8000
+```
+
+---
+
+## 2. Backend Docker
+
+后端基于：
+
+```text
+python:3.11-slim
+```
+
+构建镜像。
+
+Backend Dockerfile：
+
+```dockerfile
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+
+RUN python -m pip install --upgrade pip \
+    && python -m pip install -r requirements.txt
+
+COPY . .
+
+RUN mkdir -p /app/data/chroma
+
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+Backend Container 内部监听：
+
+```text
+0.0.0.0:8000
+```
+
+而不是只监听：
+
+```text
+127.0.0.1
+```
+
+这样 Docker Network 中的其他 Container 才能够访问 FastAPI。
+
+---
+
+## 3. Frontend Multi-stage Build
+
+前端使用 Multi-stage Build。
+
+第一阶段使用 Node：
+
+```text
+Vue Source
+    ↓
+Node
+    ↓
+npm ci / npm install
+    ↓
+npm run build
+    ↓
+dist/
+```
+
+第二阶段使用 Nginx：
+
+```text
+dist/
+   ↓
+Nginx
+   ↓
+Production Frontend
+```
+
+Frontend Dockerfile：
+
+```dockerfile
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN if [ -f package-lock.json ]; then \
+        npm ci; \
+    else \
+        npm install; \
+    fi
+
+COPY . .
+
+RUN npm run build
+
+
+FROM nginx:1.27-alpine
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+Node 只负责 Build。
+
+最终 Production Image 只保留：
+
+```text
+Nginx
++
+Vue Build Output
+```
+
+而不需要保留完整 Node Runtime、Vite Dev Server 和前端开发依赖。
+
+---
+
+## 4. Nginx Reverse Proxy
+
+Production 环境下，浏览器不会直接访问 FastAPI。
+
+前端统一请求：
+
+```text
+/api/...
+```
+
+Nginx 再将 `/api` 请求代理到：
+
+```text
+http://backend:8000
+```
+
+核心配置：
+
+```nginx
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location /api/ {
+        proxy_pass http://backend:8000;
+
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_buffering off;
+        proxy_cache off;
+
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    location = /health {
+        proxy_pass http://backend:8000/health;
+
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+其中：
+
+```nginx
+proxy_buffering off;
+```
+
+用于关闭 Nginx Response Buffer。
+
+本项目使用 NDJSON Streaming：
+
+```text
+sources
+   ↓
+answer delta
+   ↓
+answer delta
+   ↓
+done
+```
+
+关闭 Buffer 后，FastAPI 生成的增量内容可以持续经过：
+
+```text
+FastAPI
+   ↓
+Nginx
+   ↓
+ReadableStream
+   ↓
+Vue
+```
+
+传递到浏览器。
+
+---
+
+## 5. Frontend API Routing
+
+前端 API Service 默认使用相对路径：
+
+```javascript
+this.baseUrl =
+  import.meta.env.VITE_API_BASE_URL || '';
+```
+
+例如：
+
+```javascript
+fetch(`${this.baseUrl}/api/rag/documents`)
+```
+
+Production 环境实际请求：
+
+```text
+/api/rag/documents
+```
+
+然后由 Nginx 代理到 Backend。
+
+这样可以避免在 Production Bundle 中写死：
+
+```text
+http://127.0.0.1:8001
+```
+
+因为浏览器中的：
+
+```text
+127.0.0.1
+```
+
+代表的是访问网站的用户本机，而不是部署 RAG 服务的 Server。
+
+开发环境：
+
+```text
+Vue Dev Server
+   ↓
+/api
+   ↓
+Vite Proxy
+   ↓
+127.0.0.1:8001
+```
+
+Docker / Production 环境：
+
+```text
+Browser
+   ↓
+/api
+   ↓
+Nginx
+   ↓
+backend:8000
+```
+
+---
+
+## 6. Docker Compose
+
+项目根目录：
+
+```text
+docker-compose.yml
+```
+
+统一管理 Frontend 与 Backend。
+
+```yaml
+services:
+  backend:
+    build:
+      context: ./rag-server
+    image: rag-backend:local
+    env_file:
+      - ./rag-server/.env
+    volumes:
+      - ./rag-server/data/chroma:/app/data/chroma
+      - rag-model-cache:/tmp/fastembed_cache
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./hellorag
+    image: rag-frontend:local
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  rag-model-cache:
+    external: true
+    name: rag-model-cache
+```
+
+Docker Compose 负责：
+
+```text
+Build Image
+   ↓
+Create Network
+   ↓
+Create Container
+   ↓
+Inject Environment Variables
+   ↓
+Mount Persistent Storage
+   ↓
+Start Services
+```
+
+Compose 自动创建内部 Network：
+
+```text
+raganswer_default
+```
+
+因此 Frontend 可以直接通过：
+
+```text
+backend:8000
+```
+
+访问 Backend，而不需要写死 Container IP。
+
+---
+
+## 7. Environment Variables
+
+LLM API Key 不写入 Docker Image。
+
+Backend 使用：
+
+```yaml
+env_file:
+  - ./rag-server/.env
+```
+
+在 Container Runtime 注入变量。
+
+示例：
+
+```env
+DEEPSEEK_API_KEY=your_api_key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=your_model_name
+```
+
+真实 `.env`：
+
+```text
+不提交 GitHub
+不 COPY 进 Docker Image
+不写入 Dockerfile
+不写入 README
+```
+
+Backend `.dockerignore` 同时排除：
+
+```text
+.env
+.env.*
+```
+
+避免 Secret 被加入 Docker Build Context 或打包进 Image。
+
+---
+
+## 8. ChromaDB Persistence
+
+ChromaDB 使用 Bind Mount：
+
+```yaml
+- ./rag-server/data/chroma:/app/data/chroma
+```
+
+对应：
+
+```text
+Host
+./rag-server/data/chroma
+
+        ↕ Bind Mount
+
+Container
+/app/data/chroma
+```
+
+Vector Database 数据不依赖 Container 自己的可写层。
+
+因此即使执行：
+
+```bash
+docker compose down
+docker compose up -d
+```
+
+删除并重新创建 Backend Container，已经索引的：
+
+```text
+Documents
+Chunks
+Embeddings
+Metadata
+```
+
+仍然可以恢复。
+
+---
+
+## 9. FastEmbed Model Cache
+
+FastEmbed 第一次初始化模型时需要下载：
+
+```text
+sentence-transformers/
+paraphrase-multilingual-MiniLM-L12-v2
+```
+
+实际模型缓存目录为：
+
+```text
+/tmp/fastembed_cache
+```
+
+因此使用 Docker Named Volume：
+
+```yaml
+- rag-model-cache:/tmp/fastembed_cache
+```
+
+首次使用前创建：
+
+```bash
+docker volume create rag-model-cache
+```
+
+Volume：
+
+```text
+rag-model-cache
+```
+
+独立于普通 Container 生命周期。
+
+因此即使：
+
+```bash
+docker compose down
+docker compose up -d
+```
+
+Backend Container 被重新创建，也可以继续复用已经下载的 FastEmbed 模型。
+
+---
+
+## 10. Build & Run
+
+首次使用：
+
+```bash
+docker volume create rag-model-cache
+```
+
+然后在项目根目录：
+
+```bash
+docker compose up -d --build
+```
+
+查看状态：
+
+```bash
+docker compose ps
+```
+
+正常情况下：
+
+```text
+backend     Up
+frontend    Up
+```
+
+Frontend Port Mapping：
+
+```text
+Host :8080
+   ↓
+Container :80
+```
+
+浏览器访问：
+
+```text
+http://127.0.0.1:8080
+```
+
+Backend 不直接映射到宿主机端口。
+
+外部请求统一通过 Frontend Nginx 进入应用。
+
+---
+
+## 11. Docker Logs
+
+查看 Backend：
+
+```bash
+docker compose logs backend
+```
+
+持续查看：
+
+```bash
+docker compose logs -f backend
+```
+
+查看最近三分钟：
+
+```bash
+docker compose logs backend --since 3m
+```
+
+查看 Frontend / Nginx：
+
+```bash
+docker compose logs frontend
+```
+
+单独 Container 调试时也可以使用：
+
+```bash
+docker logs <container-name>
+```
+
+---
+
+## 12. Stop / Restart
+
+重启现有 Container：
+
+```bash
+docker compose restart
+```
+
+停止并删除 Compose 创建的 Container 和 Network：
+
+```bash
+docker compose down
+```
+
+重新创建：
+
+```bash
+docker compose up -d
+```
+
+当前：
+
+```text
+ChromaDB
+→ Bind Mount
+
+FastEmbed Model
+→ Named Volume
+```
+
+都独立于普通 Container 生命周期。
+
+因此普通：
+
+```text
+down
+→
+up
+```
+
+不会清空 Knowledge Base，也不需要重新完整下载 Embedding Model。
+
+> 涉及持久化数据时，不要随意使用 `docker compose down -v`，因为 `-v` 会进一步处理 Volume。
+
+---
+
+## 13. 本地 Docker 回归验证
+
+当前版本已经完成真实 Docker 环境端到端验证：
+
+```text
+Docker Compose
+      ↓
+Nginx
+      ↓
+FastAPI
+      ↓
+Document Parser
+      ↓
+Chunker
+      ↓
+FastEmbed
+      ↓
+ChromaDB
+      ↓
+Retriever
+      ↓
+Remote LLM
+      ↓
+NDJSON Streaming
+      ↓
+Vue
+```
+
+实际验证包括：
+
+- Frontend / Backend Container 正常启动；
+- Nginx `/api` Reverse Proxy 正常；
+- 文档列表正常读取；
+- PDF / DOCX / TXT / MD 上传链路正常；
+- 当前文档 Retrieval 正常；
+- 全部文档 Retrieval 正常；
+- Source Citation 正常；
+- NDJSON Streaming 可以经过 Nginx 持续传输；
+- 文档删除后 ChromaDB 与前端状态同步；
+- 页面刷新后被删除文档不会恢复；
+- `docker compose restart` 后知识库仍然存在；
+- `docker compose down` 后重新创建 Container，知识库仍然存在；
+- FastEmbed Model Cache 在 Container 重建后继续复用；
+- Container 重建后首次 Query Embedding 不需要重新完整下载模型。
 
 ---
 
@@ -1279,6 +2009,20 @@ request.json
 - `node_modules/`：前端依赖；
 - `__pycache__/`：Python 缓存；
 - IDE 配置与本地测试数据不进入仓库。
+
+同时 Docker Build 使用 `.dockerignore`，用于排除：
+
+```text
+node_modules
+dist
+.env
+data/chroma
+.git
+.idea
+.vscode
+```
+
+避免无关文件进入 Build Context，并降低 Secret 被打入 Image 的风险。
 
 ---
 
@@ -1474,6 +2218,72 @@ Child State
 
 ---
 
+## 8. Container 与持久化数据解耦
+
+Docker Container 被视为可替换的 Runtime Instance。
+
+业务数据和模型缓存不依赖 Container 本身保存：
+
+```text
+Backend Container
+       │
+       ├── /app/data/chroma
+       │       ↓
+       │   Host Bind Mount
+       │
+       └── /tmp/fastembed_cache
+               ↓
+          Docker Volume
+```
+
+因此：
+
+```text
+Container
+可以删除并重新创建
+
+Data
+保持独立持久化
+```
+
+这使部署过程更加接近可重复、可恢复的运行环境。
+
+---
+
+## 9. Internal Network + Reverse Proxy
+
+Production 环境不让浏览器直接访问 Backend。
+
+对外只暴露：
+
+```text
+Nginx
+```
+
+请求链路：
+
+```text
+Internet / Browser
+       ↓
+Nginx
+       ↓
+Docker Internal Network
+       ↓
+FastAPI
+```
+
+Backend 通过 Service Name：
+
+```text
+backend
+```
+
+被 Frontend Container 访问。
+
+避免依赖动态 Container IP，同时减少 Backend 直接暴露到宿主机网络的必要性。
+
+---
+
 # 📊 已完成验证
 
 项目已经使用真实文档完成端到端测试。
@@ -1495,7 +2305,16 @@ Child State
 - 文档删除；
 - 删除后向量不可再次召回；
 - 页面刷新后文档状态同步；
-- 长对话区域独立滚动。
+- 长对话区域独立滚动；
+- Docker Backend 镜像构建与运行；
+- Vue + Nginx Frontend 镜像构建；
+- Docker Compose 前后端网络联调；
+- Nginx `/api` Reverse Proxy；
+- Nginx 下 NDJSON Streaming；
+- Compose 重启后的 ChromaDB 数据持久化；
+- Compose Container 重建后的 ChromaDB 数据持久化；
+- FastEmbed `/tmp/fastembed_cache` 模型缓存持久化；
+- FastEmbed 模型在 Container 重建后无需重新完整下载。
 
 其中某次真实 PDF 测试：
 
@@ -1560,6 +2379,19 @@ Document Delete
 ChromaDB Source of Truth
 +
 Frontend State Synchronization
+        ↓
+V9
+Docker Backend
++
+Vue / Nginx Frontend
++
+Docker Compose
++
+Nginx Reverse Proxy
++
+Persistent ChromaDB
++
+Persistent FastEmbed Model Cache
 ```
 
 项目从：
@@ -1572,7 +2404,7 @@ Frontend State Synchronization
 
 ```text
 “自主实现 Retrieval Pipeline，
-并完成前后端一体化 RAG 应用”
+并完成前后端一体化、可容器化运行的 RAG 应用”
 ```
 
 ---
@@ -1607,6 +2439,14 @@ Traceable Sources
 Markdown Safe Rendering
         +
 ChromaDB Source of Truth
+        +
+Docker / Docker Compose
+        +
+Nginx Reverse Proxy
+        +
+Frontend Multi-stage Build
+        +
+Persistent Model Cache
 ```
 
 项目重点不只是“调用 AI”，而是完整实现和串联：
@@ -1631,13 +2471,15 @@ Streaming
 Source Citation
 +
 Frontend Workspace
++
+Containerized Deployment
 ```
 
 ---
 
 ## 📌 后续可扩展方向
 
-当前版本已经完成核心 RAG Workflow。
+当前版本已经完成核心 RAG Workflow 和本地 Docker Compose 容器化部署。
 
 后续如果继续扩展，可以考虑：
 
@@ -1649,8 +2491,34 @@ Frontend Workspace
 - Retrieval Evaluation Dataset；
 - 对话级 Query Context；
 - 文档预览与 Citation 跳转；
-- Docker 部署；
-- Redis / PostgreSQL 用户级知识库。
+- Linux 云服务器部署；
+- Domain + HTTPS；
+- GitHub Actions CI/CD；
+- Backend Healthcheck；
+- API Rate Limit；
+- Authentication；
+- 用户级知识库隔离；
+- Redis / PostgreSQL 用户级数据存储。
+
+其中云部署阶段还需要重点解决：
+
+```text
+Public IP
++
+Linux Server
++
+Firewall
++
+80 / 443 Port
++
+HTTPS
++
+Rate Limit
++
+API Cost Protection
++
+Multi-user Data Isolation
+```
 
 这些功能不属于当前核心版本的必要依赖。
 
