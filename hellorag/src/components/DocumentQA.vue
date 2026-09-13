@@ -153,67 +153,7 @@
       ></div>
 
       <!-- RAG 来源 -->
-      <div
-        v-if="
-          message.content &&
-          message.sources &&
-          message.sources.length
-        "
-        class="source-list"
-      >
-        <div class="source-title-row">
-          <div class="source-title">
-            参考来源
-          </div>
-
-          <div class="source-scope-info">
-            {{
-              message.retrievalScope === 'all'
-                ? `全部文档 · 命中 ${countSourceDocuments(message.sources)} 个文档`
-                : '当前文档'
-            }}
-          </div>
-        </div>
-
-        <details
-          v-for="source in message.sources"
-          :key="
-            `${source.source_id}-${source.chunk_index}`
-          "
-          class="source-card"
-        >
-          <summary>
-            <span class="source-index">
-              [{{ source.source_id }}]
-            </span>
-
-            <span class="source-file">
-              {{ source.file_name }}
-            </span>
-
-            <span class="source-location">
-              {{
-                formatSourceLocation(
-                  source
-                )
-              }}
-            </span>
-          </summary>
-
-          <div class="source-meta">
-            语义相关度：
-            {{
-              formatSimilarity(
-                source.similarity
-              )
-            }}
-          </div>
-
-          <div class="source-text">
-            {{ source.text }}
-          </div>
-        </details>
-      </div>
+    <SourceList v-if="message.content && message.sources && message.sources.length":sources="message.sources" :retrieval-scope=" message.retrievalScope" @preview="handleSourcePreview"/>
 
       <!-- AI 操作 -->
       <div
@@ -298,9 +238,15 @@
 import apiService from '../services/apiService';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import SourceList from './SourceList.vue';
 
 export default {
   name: 'DocumentQA',
+
+  components: {
+    SourceList
+  },
+
   props: {
     // 可以从父组件传入文件ID
     initialFileId: {
@@ -327,7 +273,8 @@ export default {
   },
 
   emits: [
-    'update:retrievalScope'
+    'update:retrievalScope',
+    'source-selected'
   ],
 
   data() {
@@ -528,47 +475,6 @@ export default {
         second: '2-digit'
       });
     },
-    
-    formatSourceLocation(
-      source
-    ) {
-      if (
-        source.page !== null &&
-        source.page !== undefined
-      ) {
-        return `第 ${source.page} 页`;
-      }
-
-      if (
-        source.chunk_index !==
-          null &&
-        source.chunk_index !==
-          undefined
-      ) {
-        return `片段 ${
-          source.chunk_index + 1
-        }`;
-      }
-
-      return '文档片段';
-    },
-
-    formatSimilarity(
-      similarity
-    ) {
-      if (
-        typeof similarity !==
-        'number'
-      ) {
-        return '-';
-      }
-
-      return `${
-        (
-         similarity * 100
-        ).toFixed(1)
-      }%`;
-    },
 
     // 格式化回答内容
     formatAnswer(content) {
@@ -616,13 +522,9 @@ export default {
       this.$emit('update:retrievalScope',scope);
     },
 
-    countSourceDocuments(sources = []) {
-      const fileNames = sources.map(source => source.file_name).filter(Boolean);
-
-      return new Set(
-        fileNames
-      ).size;
-    },
+    handleSourcePreview(source) {
+      this.$emit('source-selected',source);
+    }
   }
 };
 </script>

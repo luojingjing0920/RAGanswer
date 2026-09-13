@@ -185,23 +185,17 @@
         </div>
 
         <!-- 文档问答 -->
-        <div
-          v-if="currentStep === 'qa'"
-          class="qa-section"
-        >
-          <DocumentQA
-            :key="uploadedFileId"
-            :initial-file-id="
-              uploadedFileId
-            "
-            :file-name="
-              currentFileName
-            "
-            v-model:retrieval-scope="
-              retrievalScope
-            "
-          />
+      <div v-if="currentStep === 'qa'" class="qa-section">
+        <div class="qa-workspace" :class="{'preview-open': previewDocumentId}">
+        <div class="qa-panel">
+          <DocumentQA :key="uploadedFileId" :initial-file-id=" uploadedFileId" :file-name="currentFileName"  v-model:retrieval-scope="retrievalScope" @source-selected="handleSourceSelected"/>
         </div>
+
+        <div v-if="previewDocumentId" class="preview-panel">
+          <DocumentPreviewPane :document-id="previewDocumentId" :file-name="previewFileName" :page="previewPage" @close="clearPreview"/>
+        </div>
+      </div>
+      </div>
       </div>
     </main>
 
@@ -326,14 +320,13 @@
 </template>
 
 <script>
-import FileUpload
-  from '../components/FileUpload.vue';
+import FileUpload from '../components/FileUpload.vue';
 
-import DocumentQA
-  from '../components/DocumentQA.vue';
+import DocumentQA from '../components/DocumentQA.vue';
 
-import apiService
-  from '../services/apiService';
+import apiService from '../services/apiService';
+
+import DocumentPreviewPane from '../components/DocumentPreviewPane.vue';
 
 
 export default {
@@ -341,7 +334,8 @@ export default {
 
   components: {
     FileUpload,
-    DocumentQA
+    DocumentQA,
+    DocumentPreviewPane
   },
 
 
@@ -361,6 +355,15 @@ export default {
       // 当前检索范围
       // current / all
       retrievalScope: 'current',
+
+      // 当前准备预览的文档 ID
+      previewDocumentId: '',
+
+      // Citation 对应的 PDF 页码
+      previewPage: null,
+
+      // Preview 顶部展示的文件名
+      previewFileName: '',
 
       showAbout: false,
 
@@ -425,6 +428,11 @@ export default {
         'upload';
     },
 
+    clearPreview() {
+      this.previewDocumentId = '';
+      this.previewPage = null;
+      this.previewFileName = '';
+    },
 
     /**
      * 上传完成。
@@ -441,6 +449,8 @@ export default {
     ) {
       this.uploadedFileId =
         fileId;
+
+      this.clearPreview();
 
       /**
        * 新上传文档默认进入
@@ -485,6 +495,8 @@ export default {
       this.uploadedFileId =
         fileId;
 
+      this.clearPreview();
+
       this.currentStep = 'qa';
 
       /**
@@ -495,6 +507,35 @@ export default {
       localStorage.setItem(
         'lastRagDocumentId',
         fileId
+      );
+    },
+
+    handleSourceSelected(source) {
+      if (
+        !source?.document_id ||
+        source.page === null ||
+        source.page === undefined
+      ) {
+        this.showMessage(
+          '该来源暂时无法定位到原文',
+          'error'
+        );
+
+        return;
+      }
+
+      this.previewDocumentId =
+        source.document_id;
+
+      this.previewPage =
+        source.page;
+
+      this.previewFileName =
+        source.file_name || 'PDF 文档';
+
+      this.showMessage(
+        `正在定位到第 ${source.page} 页`,
+        'info'
       );
     },
 
