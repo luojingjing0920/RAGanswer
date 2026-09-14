@@ -1,7 +1,7 @@
 from rag.context_builder import build_context
+from rag.hybrid_retriever import HybridRetriever
 from rag.llm_service import LLMService
 from rag.retriever import Retriever
-
 
 class RAGService:
     """
@@ -23,25 +23,86 @@ class RAGService:
     """
 
     def __init__(
-        self,
-        retriever: Retriever | None = None,
-        llm_service: LLMService | None = None,
+            self,
+            retriever: Retriever | None = None,
+            hybrid_retriever: HybridRetriever | None = None,
+            llm_service: LLMService | None = None,
     ):
         self.retriever = (
-            retriever
-            or Retriever()
+                retriever
+                or Retriever()
+        )
+
+        self.hybrid_retriever = (
+                hybrid_retriever
+                or HybridRetriever(
+            dense_retriever=self.retriever
+        )
         )
 
         self.llm_service = (
-            llm_service
-            or LLMService()
+                llm_service
+                or LLMService()
+        )
+
+    def _retrieve(
+            self,
+            question: str,
+            document_id: str | None,
+            top_k: int,
+            similarity_threshold: float | None,
+    ) -> tuple[list[dict], str, float | None]:
+        """
+        根据问答模式选择检索策略。
+
+        指定文档：
+            Dense Retrieval
+
+        全部文档：
+            Dense + BM25 + Weighted RRF
+        """
+
+        if document_id:
+            effective_threshold = (
+                similarity_threshold
+                if similarity_threshold is not None
+                else 0.45
+            )
+
+            results = self.retriever.retrieve(
+                query=question,
+                top_k=top_k,
+                document_id=document_id,
+                similarity_threshold=(
+                    effective_threshold
+                ),
+            )
+
+            return (
+                results,
+                "dense",
+                effective_threshold,
+            )
+
+        results = (
+            self.hybrid_retriever.retrieve(
+                query=question,
+                top_k=top_k,
+                document_id=None,
+            )
+        )
+
+        return (
+            results,
+            "hybrid",
+            None,
         )
 
     def answer(
             self,
             question: str,
             document_id: str | None = None,
-            top_k: int = 5,
+            top_k: int | None = None,
             similarity_threshold: float | None = None,
     ) -> dict:
         """
@@ -55,30 +116,23 @@ class RAGService:
                 "question 不能为空"
             )
 
-        # 当前文档模式：
-        # 已经通过 document_id 限定了搜索范围，
-        # 因此使用更宽松的阈值，提高召回率。
-        #
-        # 全部文档模式：
-        # 搜索空间更大，使用稍高阈值，
-        # 降低无关文档被召回的概率。
-        effective_threshold = (
-            similarity_threshold
-            if similarity_threshold is not None
+        effective_top_k = (
+            top_k
+            if top_k is not None
             else (
-                0.45
+                5
                 if document_id
-                else 0.10
+                else 8
             )
         )
 
-        retrieval_results = (
-            self.retriever.retrieve(
-                query=question,
-                top_k=top_k,
+        retrieval_results, _, _ = (
+            self._retrieve(
+                question=question,
                 document_id=document_id,
+                top_k=effective_top_k,
                 similarity_threshold=(
-                    effective_threshold
+                    similarity_threshold
                 ),
             )
         )
@@ -114,7 +168,7 @@ class RAGService:
             self,
             question: str,
             document_id: str | None = None,
-            top_k: int = 5,
+            top_k: int | None = None,
             similarity_threshold: float | None = None,
     ):
         """
@@ -144,24 +198,23 @@ class RAGService:
                 "question 不能为空"
             )
 
-        # 动态选择默认相似度阈值
-        effective_threshold = (
-            similarity_threshold
-            if similarity_threshold is not None
+        effective_top_k = (
+            top_k
+            if top_k is not None
             else (
-                0.45
+                5
                 if document_id
-                else 0.10
+                else 8
             )
         )
 
-        retrieval_results = (
-            self.retriever.retrieve(
-                query=question,
-                top_k=top_k,
+        retrieval_results, _, _ = (
+            self._retrieve(
+                question=question,
                 document_id=document_id,
+                top_k=effective_top_k,
                 similarity_threshold=(
-                    effective_threshold
+                    similarity_threshold
                 ),
             )
         )

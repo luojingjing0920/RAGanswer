@@ -1,0 +1,216 @@
+[
+  {
+    "id": "cross_q01",
+    "category": "exact_term",
+    "question": "这个 JSON Schema Builder 项目中，从点击 Add Field 到 Form Preview 更新，完整的数据流经过哪些步骤？",
+    "expected_file_names": [
+      "JSON-Schema-Builder_10天学习与AI改造计划.docx"
+    ],
+    "evidence_keywords": [
+      "Add Field",
+      "FieldConfig",
+      "Schema 生成逻辑",
+      "Form Preview"
+    ],
+    "min_keyword_matches": 3,
+    "should_reject": false
+  },
+  {
+    "id": "cross_q02",
+    "category": "direct",
+    "question": "JSON Schema Builder 项目的启动链是什么？",
+    "expected_file_names": [
+      "JSON-Schema-Builder_10天学习与AI改造计划.docx"
+    ],
+    "evidence_keywords": [
+      "index.html",
+      "main.tsx",
+      "createRoot",
+      "App"
+    ],
+    "min_keyword_matches": 3,
+    "should_reject": false
+  },
+  {
+    "id": "cross_q03",
+    "category": "paraphrase",
+    "question": "学习这个表单项目时，应该按照什么顺序追踪源码的核心业务流程？",
+    "expected_file_names": [
+      "JSON-Schema-Builder_10天学习与AI改造计划.docx"
+    ],
+    "evidence_keywords": [
+      "package.json",
+      "main.tsx",
+      "App.tsx",
+      "types",
+      "utils"
+    ],
+    "min_keyword_matches": 3,
+    "should_reject": false
+  },
+  {
+    "id": "cross_q04",
+    "category": "exact_term",
+    "question": "自然语言生成表单时，从用户描述到最终 Preview 的 AI 流程是什么？",
+    "expected_file_names": [
+      "JSON-Schema-Builder_10天学习与AI改造计划.docx"
+    ],
+    "evidence_keywords": [
+      "LLM API",
+      "Structured Output",
+      "JSON Schema",
+      "AJV",
+      "Preview"
+    ],
+    "min_keyword_matches": 3,
+    "should_reject": false
+  },
+  {
+    "id": "cross_q05",
+    "category": "paraphrase",
+    "question": "如果用户要求在已有表单中再增加一个字段，AI 应该怎样修改当前 Schema？",
+    "expected_file_names": [
+      "JSON-Schema-Builder_10天学习与AI改造计划.docx"
+    ],
+    "evidence_keywords": [
+      "Current Schema",
+      "LLM",
+      "Patch",
+      "Validate",
+      "Preview"
+    ],
+    "min_keyword_matches": 3,
+    "should_reject": false
+  },
+  {
+    "id": "cross_q06",
+    "category": "reasoning",
+    "question": "为什么学习这个项目时可以暂时不深入 RJSF、AJV 和 MUI 的源码，但不能把自己项目的数据流当成黑盒？",
+    "expected_file_names": [
+      "JSON-Schema-Builder_10天学习与AI改造计划.docx"
+    ],
+    "evidence_keywords": [
+      "第三方库",
+      "黑盒",
+      "RJSF",
+      "AJV",
+      "数据流"
+    ],
+    "min_keyword_matches": 3,
+    "should_reject": false
+  },
+  {
+    "id": "cross_q07",
+    "category": "direct",
+    "question": "JSON Schema Builder 中哪些目录或文件主要负责字段类型、Schema 转换和顶层状态？",
+    "expected_file_names": [
+      "JSON-Schema-Builder_10天学习与AI改造计划.docx"
+    ],
+    "evidence_keywords": [
+      "types",
+      "utils",
+      "App.tsx"
+    ],
+    "min_keyword_matches": 2,
+    "should_reject": false
+  },
+  {
+    "id": "cross_q08",
+    "category": "cross_document",
+    "question": "实习过程中参与接口联调和问题排查后，主要提升了哪些能力？",
+    "expected_file_names": [
+      "工作日记-2023211259-罗晶晶.pdf"
+    ],
+    "expected_pages": [
+      11
+    ],
+    "evidence_keywords": [
+      "接口联调",
+      "问题排查",
+      "接口文档",
+      "业务数据"
+    ],
+    "min_keyword_matches": 2,
+    "should_reject": false
+  },
+  {
+    "id": "cross_q09",
+    "category": "cross_document",
+    "question": "经过一段时间的企业项目实践后，对前端开发在完整项目流程中的作用有什么新的认识？",
+    "expected_file_names": [
+      "工作日记-2023211259-罗晶晶.pdf"
+    ],
+    "expected_pages": [
+      11
+    ],
+    "evidence_keywords": [
+      "完整项目流程",
+      "页面",
+      "接口",
+      "测试",
+      "整体项目意识"
+    ],
+    "min_keyword_matches": 2,
+    "should_reject": false
+  },
+  {
+    "id": "cross_q10",
+    "category": "cross_document",
+    "question": "实习中后续准备继续开展哪些工作？",
+    "expected_file_names": [
+      "工作日记-2023211259-罗晶晶.pdf"
+    ],
+    "expected_pages": [
+      11
+    ],
+    "evidence_keywords": [
+      "功能迭代",
+      "系统维护",
+      "复杂业务场景",
+      "问题定位"
+    ],
+    "min_keyword_matches": 2,
+    "should_reject": false
+  },
+  {
+    "id": "cross_q11",
+    "category": "cross_document",
+    "question": "复杂表单中字段之间存在前后依赖关系时，是如何进行处理的？",
+    "expected_file_names": [
+      "工作日记-2023211259-罗晶晶.pdf"
+    ],
+    "expected_pages": [
+      8
+    ],
+    "evidence_keywords": [],
+    "min_keyword_matches": 0,
+    "should_reject": false
+  },
+  {
+    "id": "cross_q12",
+    "category": "negative",
+    "question": "这两个项目使用的生产数据库分别是什么？",
+    "expected_file_names": [],
+    "evidence_keywords": [],
+    "min_keyword_matches": 0,
+    "should_reject": true
+  },
+  {
+    "id": "cross_q13",
+    "category": "hard_negative",
+    "question": "实习每天准确的上下班时间分别是几点？",
+    "expected_file_names": [],
+    "evidence_keywords": [],
+    "min_keyword_matches": 0,
+    "should_reject": true
+  },
+  {
+    "id": "cross_q14",
+    "category": "hard_negative",
+    "question": "JSON Schema Builder 项目目前部署在哪一家云服务商上？",
+    "expected_file_names": [],
+    "evidence_keywords": [],
+    "min_keyword_matches": 0,
+    "should_reject": true
+  }
+]

@@ -210,6 +210,65 @@ class VectorStore:
 
         return results
 
+    def get_chunks(
+        self,
+        document_id: str | None = None,
+    ) -> list[dict]:
+        """
+        获取已索引的文档片段。
+
+        用于关键词检索等需要读取原始文本的场景。
+
+        document_id 为 None 时：
+        获取整个知识库中的 chunks。
+
+        指定 document_id 时：
+        只获取该文档的 chunks。
+        """
+
+        where = None
+
+        if document_id:
+            where = {
+                "document_id": document_id
+            }
+
+        result = self.collection.get(
+            where=where,
+            include=[
+                "documents",
+                "metadatas",
+            ],
+        )
+
+        documents = (
+                result.get("documents")
+                or []
+        )
+
+        metadatas = (
+                result.get("metadatas")
+                or []
+        )
+
+        chunks = []
+
+        for text, metadata in zip(
+                documents,
+                metadatas,
+        ):
+            if not text or not metadata:
+                continue
+
+            chunks.append(
+                {
+                    "text": text,
+                    "metadata": metadata,
+                }
+            )
+
+        return chunks
+
     def list_documents(
             self
     ) -> list[dict]:

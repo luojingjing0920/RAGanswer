@@ -85,7 +85,7 @@ class RAGQARequest(BaseModel):
 
     document_id: str | None = None
     question: str
-    top_k: int = 5
+    top_k: int | None = None
     similarity_threshold: float | None = None
 
 
