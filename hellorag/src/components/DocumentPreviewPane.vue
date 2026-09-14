@@ -25,7 +25,7 @@
           v-if="page !== null"
           class="preview-page"
         >
-          第 {{ page }} 页
+          引用第 {{ page }} 页
         </span>
 
         <button
@@ -43,6 +43,7 @@
       <PdfViewer
         :document-id="documentId"
         :page="page"
+        :citation-text="citationText"
       />
     </div>
   </section>
@@ -73,6 +74,10 @@ export default {
     page: {
       type: Number,
       default: null
+    },
+    citationText: {
+      type: String,
+      default: ''
     }
   },
 

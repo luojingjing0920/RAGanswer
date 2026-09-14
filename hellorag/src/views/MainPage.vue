@@ -192,7 +192,7 @@
         </div>
 
         <div v-if="previewDocumentId" class="preview-panel">
-          <DocumentPreviewPane :document-id="previewDocumentId" :file-name="previewFileName" :page="previewPage" @close="clearPreview"/>
+          <DocumentPreviewPane :document-id="previewDocumentId" :file-name="previewFileName" :page="previewPage" :citation-text="previewCitationText" @close="clearPreview" />
         </div>
       </div>
       </div>
@@ -365,6 +365,9 @@ export default {
       // Preview 顶部展示的文件名
       previewFileName: '',
 
+      // 当前 Citation 对应的原始 Chunk 文本
+      previewCitationText: '',
+
       showAbout: false,
 
       message: '',
@@ -432,6 +435,7 @@ export default {
       this.previewDocumentId = '';
       this.previewPage = null;
       this.previewFileName = '';
+      this.previewCitationText = '';
     },
 
     /**
@@ -532,6 +536,9 @@ export default {
 
       this.previewFileName =
         source.file_name || 'PDF 文档';
+
+      this.previewCitationText =
+        source.text || '';
 
       this.showMessage(
         `正在定位到第 ${source.page} 页`,
