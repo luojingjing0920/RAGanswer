@@ -1,0 +1,170 @@
+[
+  {
+    "id": "q01",
+    "category": "direct",
+    "question": "入职第一周主要熟悉了哪些项目内容？",
+    "file_name": "工作日记-2023211259-罗晶晶.pdf",
+    "expected_pages": [2],
+    "should_reject": false
+  },
+  {
+    "id": "q02",
+    "category": "paraphrase",
+    "question": "公司低代码平台是通过哪些方式满足不同业务场景需求的？",
+    "file_name": "工作日记-2023211259-罗晶晶.pdf",
+    "expected_pages": [2],
+    "should_reject": false
+  },
+  {
+    "id": "q03",
+    "category": "direct",
+    "question": "参与在线表单开发时具体修改了哪些内容？",
+    "file_name": "工作日记-2023211259-罗晶晶.pdf",
+    "expected_pages": [4,6],
+    "should_reject": false
+  },
+  {
+    "id": "q04",
+    "category": "paraphrase",
+    "question": "企业开发评价一个功能时，除了代码能够运行之外还会关注哪些方面？",
+    "file_name": "工作日记-2023211259-罗晶晶.pdf",
+    "expected_pages": [5],
+    "should_reject": false
+  },
+  {
+    "id": "q05",
+    "category": "direct",
+    "question": "客户提出业务需求之后，开发人员需要如何将需求转化为具体开发任务？",
+    "file_name": "工作日记-2023211259-罗晶晶.pdf",
+    "expected_pages": [6],
+    "should_reject": false
+  },
+  {
+    "id": "q06",
+    "category": "paraphrase",
+    "question": "需求沟通阶段主要记录了哪些与前端页面和表单有关的信息？",
+    "file_name": "工作日记-2023211259-罗晶晶.pdf",
+    "expected_pages": [6],
+    "should_reject": false
+  },
+  {
+    "id": "q07",
+    "category": "direct",
+    "question": "复杂表单中字段之间存在前后依赖关系时是如何处理的？",
+    "file_name": "工作日记-2023211259-罗晶晶.pdf",
+    "expected_pages": [8],
+    "should_reject": false
+  },
+  {
+    "id": "q08",
+    "category": "paraphrase",
+    "question": "为什么一个页面功能的实现通常需要前端和后端共同协作？",
+    "file_name": "工作日记-2023211259-罗晶晶.pdf",
+    "expected_pages": [8],
+    "should_reject": false
+  },
+  {
+    "id": "q09",
+    "category": "direct",
+    "question": "接口联调阶段主要完成了哪些前后端数据交互工作？",
+    "file_name": "工作日记-2023211259-罗晶晶.pdf",
+    "expected_pages": [10],
+    "should_reject": false
+  },
+  {
+    "id": "q10",
+    "category": "reasoning",
+    "question": "页面出现异常时为什么不能立即判断是前端代码的问题，应该怎样排查？",
+    "file_name": "工作日记-2023211259-罗晶晶.pdf",
+    "expected_pages": [10],
+    "should_reject": false
+  },
+  {
+    "id": "q11",
+    "category": "summary",
+    "question": "经过几周实践后，作者对一个功能从需求到实现的完整流程有什么新的认识？",
+    "file_name": "工作日记-2023211259-罗晶晶.pdf",
+    "expected_pages": [11],
+    "should_reject": false
+  },
+  {
+    "id": "q12",
+    "category": "negative",
+    "question": "这次实习每个月的工资是多少？",
+    "file_name": "工作日记-2023211259-罗晶晶.pdf",
+    "expected_pages": [],
+    "should_reject": true
+  },
+  {
+    "id": "q13",
+    "category": "negative",
+    "question": "公司生产环境使用的是阿里云、腾讯云还是 AWS？",
+    "file_name": "工作日记-2023211259-罗晶晶.pdf",
+    "expected_pages": [],
+    "should_reject": true
+  },
+  {
+    "id": "q14",
+    "category": "negative",
+    "question": "这个项目的数据库使用的是 MySQL 还是 PostgreSQL？",
+    "file_name": "工作日记-2023211259-罗晶晶.pdf",
+    "expected_pages": [],
+    "should_reject": true
+  },
+  {
+  "id": "q15",
+  "category": "hard_negative",
+  "question": "这次实习每天具体几点上班、几点下班？",
+  "file_name": "工作日记-2023211259-罗晶晶.pdf",
+  "expected_pages": [],
+  "should_reject": true
+},
+{
+  "id": "q16",
+  "category": "hard_negative",
+  "question": "公司使用的低代码平台具体叫什么产品名称？",
+  "file_name": "工作日记-2023211259-罗晶晶.pdf",
+  "expected_pages": [],
+  "should_reject": true
+},
+{
+  "id": "q17",
+  "category": "hard_negative",
+  "question": "项目后端主要使用 Java、Python 还是其他编程语言？",
+  "file_name": "工作日记-2023211259-罗晶晶.pdf",
+  "expected_pages": [],
+  "should_reject": true
+},
+{
+  "id": "q18",
+  "category": "hard_negative",
+  "question": "这次实习一共有多少名前端开发人员参与项目？",
+  "file_name": "工作日记-2023211259-罗晶晶.pdf",
+  "expected_pages": [],
+  "should_reject": true
+},
+{
+  "id": "q19",
+  "category": "hard_negative",
+  "question": "项目中的客户主要来自哪些国家或地区？",
+  "file_name": "工作日记-2023211259-罗晶晶.pdf",
+  "expected_pages": [],
+  "should_reject": true
+},
+{
+  "id": "q20",
+  "category": "hard_negative",
+  "question": "开发过程中具体使用了哪些自动化测试工具？",
+  "file_name": "工作日记-2023211259-罗晶晶.pdf",
+  "expected_pages": [],
+  "should_reject": true
+},
+{
+  "id": "q21",
+  "category": "hard_negative",
+  "question": "实习期间平均每周提交多少次代码？",
+  "file_name": "工作日记-2023211259-罗晶晶.pdf",
+  "expected_pages": [],
+  "should_reject": true
+}
+]
