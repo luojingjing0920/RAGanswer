@@ -135,7 +135,7 @@ class ApiService {
         body: JSON.stringify({
           document_id: documentId,
           question,
-          top_k: options.topK ?? 4,
+          ...(options.topK != null ? { top_k: options.topK} : {})
         })
       }
     );
@@ -193,8 +193,7 @@ class ApiService {
           body: JSON.stringify({
             document_id: documentId,
             question,
-            top_k:
-              options.topK ?? 4,
+            ...(options.topK != null ? { top_k: options.topK} : {})
           }),
 
           signal: controller.signal

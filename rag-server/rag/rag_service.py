@@ -41,7 +41,7 @@ class RAGService:
             self,
             question: str,
             document_id: str | None = None,
-            top_k: int = 4,
+            top_k: int = 5,
             similarity_threshold: float | None = None,
     ) -> dict:
         """
@@ -66,7 +66,7 @@ class RAGService:
             similarity_threshold
             if similarity_threshold is not None
             else (
-                0.05
+                0.45
                 if document_id
                 else 0.10
             )
@@ -114,7 +114,7 @@ class RAGService:
             self,
             question: str,
             document_id: str | None = None,
-            top_k: int = 4,
+            top_k: int = 5,
             similarity_threshold: float | None = None,
     ):
         """
@@ -149,7 +149,7 @@ class RAGService:
             similarity_threshold
             if similarity_threshold is not None
             else (
-                0.05
+                0.45
                 if document_id
                 else 0.10
             )
